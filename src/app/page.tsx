@@ -19,6 +19,7 @@ export default function Home() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   const fetchProjects = async () => {
     try {
@@ -38,10 +39,14 @@ export default function Home() {
 
   useEffect(() => {
     fetchProjects();
-  }, []);
+  }, [refreshTrigger]);
 
   const handleProjectClick = (project: Project) => {
     setSelectedProject(project);
+  };
+
+  const handleRefresh = () => {
+    setRefreshTrigger(prev => prev + 1);
   };
 
   if (isLoading) {
@@ -70,12 +75,13 @@ export default function Home() {
               </div>
               <FileUpload 
                 projectId={selectedProject.id} 
-                onUploadComplete={fetchProjects}
+                onUploadComplete={handleRefresh}
               />
             </div>
             <FileList 
               projectId={selectedProject.id} 
-              onFileDeleted={fetchProjects}
+              onFileDeleted={handleRefresh}
+              refreshTrigger={refreshTrigger}
             />
           </div>
         ) : (
@@ -83,7 +89,7 @@ export default function Home() {
           <>
             <div className="flex justify-between items-center mb-6">
               <h1 className="text-2xl font-bold">Projects</h1>
-              <NewProjectDialog onProjectCreated={fetchProjects} />
+              <NewProjectDialog onProjectCreated={handleRefresh} />
             </div>
 
             {projects.length === 0 ? (

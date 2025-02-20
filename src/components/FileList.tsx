@@ -16,9 +16,10 @@ interface File {
 interface FileListProps {
   projectId: string;
   onFileDeleted: () => void;
+  refreshTrigger: number;  // Add this line
 }
 
-export function FileList({ projectId, onFileDeleted }: FileListProps) {
+export function FileList({ projectId, onFileDeleted, refreshTrigger }: FileListProps) {
   const [files, setFiles] = useState<File[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -41,7 +42,7 @@ export function FileList({ projectId, onFileDeleted }: FileListProps) {
 
   useEffect(() => {
     fetchFiles();
-  }, [projectId]);
+  }, [projectId, refreshTrigger]); // Add refreshTrigger to dependencies
 
   const handleDownload = async (file: File) => {
     try {
@@ -82,7 +83,6 @@ export function FileList({ projectId, onFileDeleted }: FileListProps) {
 
       if (dbError) throw dbError;
 
-      // Trigger refresh after deletion
       onFileDeleted();
     } catch (error) {
       console.error('Error deleting file:', error);
