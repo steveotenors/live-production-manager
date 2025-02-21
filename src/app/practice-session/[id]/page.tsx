@@ -1,5 +1,6 @@
 'use client';
 
+import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { PracticeSessionPlayer } from '@/components/PracticeSessionPlayer';
 import { supabase } from '@/utils/supabase';
@@ -7,15 +8,20 @@ import { supabase } from '@/utils/supabase';
 interface PracticeSession {
   id: string;
   name: string;
-  project_id: string;
+  project_id: string | null;  // Updated to allow null
+  created_at: string;
+  updated_at: string;
 }
 
-export default function PracticeSessionPage({ params }: { params: { id: string } }) {
+export default function PracticeSessionPage() {
+  const params = useParams();
   const [session, setSession] = useState<PracticeSession | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     async function fetchSession() {
+      if (!params.id || typeof params.id !== 'string') return;  // Type guard for params.id
+      
       try {
         const { data, error } = await supabase
           .from('practice_sessions')
@@ -24,7 +30,7 @@ export default function PracticeSessionPage({ params }: { params: { id: string }
           .single();
 
         if (error) throw error;
-        setSession(data);
+        setSession(data as PracticeSession);  // Type assertion
       } catch (error) {
         console.error('Error fetching session:', error);
       } finally {

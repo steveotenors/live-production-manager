@@ -40,16 +40,19 @@ export function PracticeSessionPlayer({ sessionId, sessionName }: PracticeSessio
     fetchFiles();
   }, [sessionId]);
 
-  const handleFileSelect = async (file: DBFile) => {
-    const { data: { publicUrl } } = supabase.storage
-      .from('project-files')
-      .getPublicUrl(file.storage_path);
-
-    setSelectedFile({
-      ...file,
-      url: publicUrl
-    });
-  };
+    const handleFileSelect = async (file: DBFile) => {
+      console.log('File:', file); // Add this
+      const { data: { publicUrl } } = supabase.storage
+        .from('project-files')
+        .getPublicUrl(file.storage_path);
+      
+      console.log('Public URL:', publicUrl); // Add this
+    
+      setSelectedFile({
+        ...file,
+        url: publicUrl
+      });
+    };
 
   return (
     <div className="h-screen flex flex-col">

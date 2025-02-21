@@ -10,6 +10,7 @@ import { FileUpload } from '@/components/FileUpload';
 import { FileList } from '@/components/FileList';
 import { NewPracticeSession } from '@/components/NewPracticeSession';
 import { Project, PracticeSession } from '@/types/supabase';
+import { useRouter } from 'next/navigation';
 
 export default function Home() {
   const [projects, setProjects] = useState<Project[]>([]);
@@ -17,6 +18,7 @@ export default function Home() {
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [practiceSessions, setPracticeSessions] = useState<PracticeSession[]>([]);
+  const router = useRouter();
 
   const fetchProjects = async () => {
     try {
@@ -122,15 +124,15 @@ export default function Home() {
                         <div className="flex items-center justify-between">
                           <h3 className="font-semibold text-lg">{session.name}</h3>
                           <div className="flex gap-2">
-                            <Button 
-                              variant="outline" 
-                              size="sm"
-                              onClick={() => {
-                                window.location.href = `/practice-session/${session.id}`;
-                              }}
-                            >
-                              Open Session
-                            </Button>
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => {
+                              router.push(`/practice-session/${session.id}`);
+                            }}
+                          >
+                            Open Session
+                          </Button>
                             <Button 
                               variant="outline" 
                               size="sm"
