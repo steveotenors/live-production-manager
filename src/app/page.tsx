@@ -9,20 +9,7 @@ import { NewProjectDialog } from '@/components/NewProjectDialog';
 import { FileUpload } from '@/components/FileUpload';
 import { FileList } from '@/components/FileList';
 import { NewPracticeSession } from '@/components/NewPracticeSession';
-
-interface Project {
-  id: string;
-  name: string;
-  created_at: string;
-}
-
-interface PracticeSession {
-  id: string;
-  name: string;
-  tempo: number;
-  time_signature: string;
-  created_at: string;
-}
+import { Project, PracticeSession } from '@/types/supabase';
 
 export default function Home() {
   const [projects, setProjects] = useState<Project[]>([]);

@@ -3,24 +3,16 @@ import { Card, CardContent } from '@/components/ui/card';
 import { FileText, Download, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/utils/supabase';
-
-interface File {
-  id: string;
-  name: string;
-  size: number;
-  type: string;
-  storage_path: string;
-  created_at: string;
-}
+import { DBFile } from '@/types/supabase';
 
 interface FileListProps {
   projectId: string;
   onFileDeleted: () => void;
-  refreshTrigger: number;  // Add this line
+  refreshTrigger: number;
 }
 
 export function FileList({ projectId, onFileDeleted, refreshTrigger }: FileListProps) {
-  const [files, setFiles] = useState<File[]>([]);
+  const [files, setFiles] = useState<DBFile[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   const fetchFiles = async () => {
@@ -44,7 +36,7 @@ export function FileList({ projectId, onFileDeleted, refreshTrigger }: FileListP
     fetchFiles();
   }, [projectId, refreshTrigger]); // Add refreshTrigger to dependencies
 
-  const handleDownload = async (file: File) => {
+  const handleDownload = async (file: DBFile) => {
     try {
       const { data, error } = await supabase.storage
         .from('project-files')
@@ -66,7 +58,7 @@ export function FileList({ projectId, onFileDeleted, refreshTrigger }: FileListP
     }
   };
 
-  const handleDelete = async (file: File) => {
+  const handleDelete = async (file: DBFile) => {
     if (!confirm('Are you sure you want to delete this file?')) return;
 
     try {

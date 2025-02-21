@@ -22,6 +22,7 @@ export interface Project {
     folder_id: string | null;
     storage_path: string;
     created_at: string;
+    url?: string;
   }
   
   export interface User {
@@ -42,4 +43,11 @@ export interface Project {
     total_files: number;
     total_size: number;
     last_modified: string;
+  }
+
+  export interface PracticeSession {
+    id: string;
+    name: string;
+    project_id: string;
+    created_at: string;
   }
