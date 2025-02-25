@@ -1,6 +1,9 @@
+// src/app/layout.tsx
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { ThemeToggle } from "@/components/ThemeToggle";
+import { Toaster } from "@/components/ui/sonner";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -11,10 +14,6 @@ const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
 });
-
-const toggleTheme = () => {
-  document.body.classList.toggle('dark');
-};
 
 export const metadata: Metadata = {
   title: "Live Production Manager",
@@ -27,10 +26,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body className="dark">{`${geistSans.variable} ${geistMono.variable} antialiased`}&gt;
-          {children}
-          <button onClick={toggleTheme}>Toggle Theme</button>
+    <html lang="en" suppressHydrationWarning>
+      <body className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground`}>
+        {children}
+        <ThemeToggle />
+        <Toaster />
       </body>
     </html>
   );

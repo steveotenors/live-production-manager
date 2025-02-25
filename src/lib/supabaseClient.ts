@@ -15,8 +15,14 @@ const cookieStorage = {
   removeItem: async (key: string) => Cookies.remove(key, { path: '/' }),
 };
 
-export const supabaseClient = createClient<Database>(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    storage: cookieStorage,
-  },
-});
+export const supabaseClient = createClient<Database>(
+  supabaseUrl,
+  supabaseAnonKey,
+  {
+    auth: {
+      persistSession: true,
+      storageKey: 'supabase-auth',
+      autoRefreshToken: true,
+    },
+  }
+);
