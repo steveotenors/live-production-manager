@@ -1,163 +1,130 @@
-import { useState, useEffect } from 'react';
-import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
-import { Play, Pause, SkipBack, SkipForward, Upload, Settings, FileText } from 'lucide-react';
-import { PDFViewer } from '@/components/PDFViewer';
-import { supabase } from '@/utils/supabase';
-import { getFileUrl } from '@/utils/supabase';
-import { DBFile } from '@/types/supabase';
+import { useState, useEffect } from 'react'
+import { Button } from '@/components/ui/button'
+import { supabaseClient } from '@/lib/supabaseClient'
+import { Database } from '@/types/database.types'
+import { PDFViewer } from '@/components/PDFViewer'
+import { useParams } from 'next/navigation'
+import { getFileUrl } from '@/lib/supabase'
 
-interface PracticeSessionPlayerProps {
-  sessionId: string;
-  sessionName: string;
-}
+type PracticeSession = Database['public']['Tables']['practice_sessions']['Row']
+type Asset = Database['public']['Tables']['assets']['Row']
 
-export function PracticeSessionPlayer({ sessionId, sessionName }: PracticeSessionPlayerProps) {
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [files, setFiles] = useState<DBFile[]>([]);
-  const [selectedFile, setSelectedFile] = useState<DBFile | null>(null);
+export default function PracticeSessionPlayer() {
+  const params = useParams()
+  const [session, setSession] = useState<PracticeSession | null>(null)
+  const [assets, setAssets] = useState<Asset[]>([])
+  const [selectedAsset, setSelectedAsset] = useState<string | null>(null)
+  const [time, setTime] = useState(0)  // Time in seconds
+  const [isPlaying, setIsPlaying] = useState(false)
+  const [tempo, setTempo] = useState(120)  // Default tempo in BPM
+  const [bar, setBar] = useState(1)  // Current bar number (simplified)
 
-  // Fetch files for this practice session
   useEffect(() => {
-    async function fetchFiles() {
-      const { data: session } = await supabase
+    async function fetchSession() {
+      const sessionId = typeof params.id === 'string' ? params.id : params.id?.[0] || '';  // Handle type
+      const { data, error } = await supabaseClient
         .from('practice_sessions')
-        .select('project_id')
+        .select('*')
         .eq('id', sessionId)
-        .single();
-
-      if (session && session.project_id) {
-        const { data: files } = await supabase
-          .from('files')
-          .select('*')
-          .eq('project_id', session.project_id)
-          .eq('type', 'application/pdf');
-
-        setFiles(files || []);
+        .single()
+      if (error) {
+        console.error('Error fetching session:', error)
+      } else {
+        setSession(data || null)
       }
     }
 
-    fetchFiles();
-  }, [sessionId]);
+    async function fetchAssets() {
+      const projectId = session?.project_id || '';  // Handle null/undefined
+      const { data, error } = await supabaseClient
+        .from('assets')
+        .select('*')
+        .eq('project_id', projectId)
+        .eq('department', 'musical')
+        .order('created_at', { ascending: false })
+      if (error) {
+        console.error('Error fetching assets:', error)
+      } else {
+        setAssets(data || [])
+      }
+    }
 
-    const handleFileSelect = async (file: DBFile) => {
-      console.log('File:', file); // Add this
-      const { data: { publicUrl } } = supabase.storage
-        .from('project-files')
-        .getPublicUrl(file.storage_path);
-      
-      console.log('Public URL:', publicUrl); // Add this
-    
-      setSelectedFile({
-        ...file,
-        url: publicUrl
-      });
-    };
+    fetchSession()
+    if (session) fetchAssets()
+  }, [params.id, session?.project_id])
+
+  useEffect(() => {
+    let interval: NodeJS.Timeout
+    if (isPlaying) {
+      interval = setInterval(() => {
+        setTime((prev) => prev + 1)
+        setBar((prev) => prev + (tempo / 60 / 4))  // Simplified: 4 beats per bar, adjust based on time signature
+      }, 1000 / (tempo / 60))
+    }
+    return () => clearInterval(interval)
+  }, [isPlaying, tempo])
+
+  if (!session) {
+    return <div>Loading...</div>
+  }
 
   return (
-    <div className="h-screen flex flex-col">
-      {/* Header */}
-      <div className="bg-white border-b p-4 flex items-center justify-between">
-        <h1 className="text-2xl font-bold">{sessionName}</h1>
-        <div className="flex gap-2">
-          {/* File Selection Dropdown */}
-          <select
-            className="rounded-md border border-gray-300 px-3 py-1.5 text-sm"
-            onChange={(e) => {
-              const file = files.find(f => f.id === e.target.value);
-              if (file) handleFileSelect(file);
-            }}
-            value={selectedFile?.id || ''}
+    <div className="min-h-screen bg-gray-100 p-4">
+      <div className="max-w-7xl mx-auto">
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-2xl font-bold">{session.name}</h1>
+          <Button variant="ghost" onClick={() => window.history.back()}>
+            ← Back
+          </Button>
+        </div>
+
+        <div className="mb-4">
+          <select 
+            onChange={(e) => setSelectedAsset(e.target.value)} 
+            className="p-2 border rounded"
+            value={selectedAsset || ''}
           >
-            <option value="">Select a score</option>
-            {files.map(file => (
-              <option key={file.id} value={file.id}>
-                {file.name}
+            <option value="">Select a Track</option>
+            {assets.map((asset) => (
+              <option key={asset.id} value={asset.storage_path}>
+                {asset.name} ({asset.file_type})
               </option>
             ))}
           </select>
-          <Button variant="outline" size="sm">
-            <Settings className="h-4 w-4 mr-2" />
-            Settings
-          </Button>
-        </div>
-      </div>
-
-      {/* Main Content */}
-      <div className="flex-1 flex">
-        {/* Score Display */}
-        <div className="flex-1 bg-gray-50 p-4 overflow-auto">
-          {selectedFile && selectedFile.url ? (
-            selectedFile.type === 'application/pdf' ? (
-              <PDFViewer url={selectedFile.url} />
-            ) : (
-              <div className="text-center text-gray-500">
-                Unsupported file type
-              </div>
-            )
-          ) : (
-            <Card className="w-full h-full flex items-center justify-center text-gray-500">
-              Select a score to display
-            </Card>
-          )}
-        </div>
-      </div>
-
-      {/* Playback Controls */}
-      <div className="bg-white border-t p-4">
-        <div className="flex items-center justify-center gap-4">
-          <Button 
-            variant="outline" 
-            size="icon"
-            onClick={() => {/* Handle skip back */}}
-          >
-            <SkipBack className="h-4 w-4" />
-          </Button>
-          
-          <Button 
-            size="icon"
-            onClick={() => setIsPlaying(!isPlaying)}
-            className="h-12 w-12"
-          >
-            {isPlaying ? (
-              <Pause className="h-6 w-6" />
-            ) : (
-              <Play className="h-6 w-6" />
-            )}
-          </Button>
-
-          <Button 
-            variant="outline" 
-            size="icon"
-            onClick={() => {/* Handle skip forward */}}
-          >
-            <SkipForward className="h-4 w-4" />
-          </Button>
+          <input
+            type="number"
+            value={tempo}
+            onChange={(e) => setTempo(parseInt(e.target.value) || 120)}
+            placeholder="Tempo (BPM)"
+            className="ml-2 p-2 border rounded"
+            min="1"
+          />
+          <input
+            type="number"
+            value={bar}
+            onChange={(e) => setBar(parseInt(e.target.value) || 1)}
+            placeholder="Bar Number"
+            className="ml-2 p-2 border rounded"
+            min="1"
+          />
         </div>
 
-        {/* Click Track Selection */}
-        <div className="mt-4 flex justify-center gap-2">
-          <Button 
-            variant="outline" 
-            size="sm" 
-            className={isPlaying ? 'bg-blue-50' : ''}
-          >
-            UREI Click
-          </Button>
-          <Button 
-            variant="outline" 
-            size="sm"
-          >
-            Standard Click
-          </Button>
-          <Button 
-            variant="outline" 
-            size="sm"
-          >
-            No Click
-          </Button>
+        {selectedAsset && <PDFViewer url={getFileUrl(selectedAsset)} />}
+        
+        <div className="mt-4">
+          <p>Time: {Math.floor(time / 60)}:{(time % 60).toString().padStart(2, '0')} | Bar: {Math.floor(bar)}</p>
+          <div className="flex gap-2">
+            <Button onClick={() => setIsPlaying(!isPlaying)}>
+              {isPlaying ? 'Pause' : 'Start'}
+            </Button>
+            <Button onClick={() => setTime(0)}>Reset</Button>
+            <Button onClick={() => setTime((prev) => prev - 1)}>Skip Back 1s</Button>
+            <Button onClick={() => setTime((prev) => prev + 1)}>Skip Forward 1s</Button>
+            <Button onClick={() => setBar((prev) => prev - 1)}>Previous Bar</Button>
+            <Button onClick={() => setBar((prev) => prev + 1)}>Next Bar</Button>
+          </div>
         </div>
       </div>
     </div>
-  );
+  )
 }

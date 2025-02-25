@@ -7,63 +7,53 @@ export type Json =
   | Json[]
 
 export type Database = {
-  graphql_public: {
-    Tables: {
-      [_ in never]: never
-    }
-    Views: {
-      [_ in never]: never
-    }
-    Functions: {
-      graphql: {
-        Args: {
-          operationName?: string
-          query?: string
-          variables?: Json
-          extensions?: Json
-        }
-        Returns: Json
-      }
-    }
-    Enums: {
-      [_ in never]: never
-    }
-    CompositeTypes: {
-      [_ in never]: never
-    }
-  }
   public: {
     Tables: {
-      files: {
+      assets: {
         Row: {
           created_at: string
+          department: string | null
+          file_type: string | null
           folder_id: string | null
           id: string
+          metadata: Json | null
           name: string
           project_id: string | null
           size: number
           storage_path: string
           type: string
+          version: string | null
+          waveform_length: unknown | null
         }
         Insert: {
           created_at?: string
+          department?: string | null
+          file_type?: string | null
           folder_id?: string | null
           id?: string
+          metadata?: Json | null
           name: string
           project_id?: string | null
           size: number
           storage_path: string
           type: string
+          version?: string | null
+          waveform_length?: unknown | null
         }
         Update: {
           created_at?: string
+          department?: string | null
+          file_type?: string | null
           folder_id?: string | null
           id?: string
+          metadata?: Json | null
           name?: string
           project_id?: string | null
           size?: number
           storage_path?: string
           type?: string
+          version?: string | null
+          waveform_length?: unknown | null
         }
         Relationships: [
           {
@@ -147,7 +137,7 @@ export type Database = {
             foreignKeyName: "practice_session_files_file_id_fkey"
             columns: ["file_id"]
             isOneToOne: false
-            referencedRelation: "files"
+            referencedRelation: "assets"
             referencedColumns: ["id"]
           },
           {
@@ -162,21 +152,27 @@ export type Database = {
       practice_sessions: {
         Row: {
           created_at: string
+          department: string | null
           id: string
+          metadata: Json | null
           name: string
           project_id: string | null
           updated_at: string
         }
         Insert: {
           created_at?: string
+          department?: string | null
           id?: string
+          metadata?: Json | null
           name: string
           project_id?: string | null
           updated_at?: string
         }
         Update: {
           created_at?: string
+          department?: string | null
           id?: string
+          metadata?: Json | null
           name?: string
           project_id?: string | null
           updated_at?: string
@@ -193,22 +189,185 @@ export type Database = {
       }
       projects: {
         Row: {
+          composer_arranger: string | null
           created_at: string
+          department: string | null
           id: string
+          metadata: Json | null
           name: string
+          order_index: number | null
+          owner: string | null
+          piece_name: string | null
           updated_at: string
+          version_number: string | null
         }
         Insert: {
+          composer_arranger?: string | null
           created_at?: string
+          department?: string | null
           id?: string
+          metadata?: Json | null
           name: string
+          order_index?: number | null
+          owner?: string | null
+          piece_name?: string | null
           updated_at?: string
+          version_number?: string | null
         }
         Update: {
+          composer_arranger?: string | null
           created_at?: string
+          department?: string | null
           id?: string
+          metadata?: Json | null
           name?: string
+          order_index?: number | null
+          owner?: string | null
+          piece_name?: string | null
           updated_at?: string
+          version_number?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "projects_owner_fkey"
+            columns: ["owner"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      schedules: {
+        Row: {
+          department: string | null
+          description: string
+          end_time: string | null
+          id: string
+          metadata: Json | null
+          project_id: string | null
+          start_time: string
+        }
+        Insert: {
+          department?: string | null
+          description: string
+          end_time?: string | null
+          id?: string
+          metadata?: Json | null
+          project_id?: string | null
+          start_time: string
+        }
+        Update: {
+          department?: string | null
+          description?: string
+          end_time?: string | null
+          id?: string
+          metadata?: Json | null
+          project_id?: string | null
+          start_time?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "schedules_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tasks: {
+        Row: {
+          department: string | null
+          description: string
+          due_date: string | null
+          id: string
+          project_id: string | null
+          status: string | null
+          user_id: string | null
+        }
+        Insert: {
+          department?: string | null
+          description: string
+          due_date?: string | null
+          id?: string
+          project_id?: string | null
+          status?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          department?: string | null
+          description?: string
+          due_date?: string | null
+          id?: string
+          project_id?: string | null
+          status?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tasks_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      users: {
+        Row: {
+          department: string
+          email: string
+          full_name: string | null
+          id: string
+          role: string
+        }
+        Insert: {
+          department: string
+          email: string
+          full_name?: string | null
+          id?: string
+          role: string
+        }
+        Update: {
+          department?: string
+          email?: string
+          full_name?: string | null
+          id?: string
+          role?: string
+        }
+        Relationships: []
+      }
+      venues: {
+        Row: {
+          capacity: number | null
+          id: string
+          layout: Json | null
+          location: string
+          metadata: Json | null
+          name: string
+        }
+        Insert: {
+          capacity?: number | null
+          id?: string
+          layout?: Json | null
+          location: string
+          metadata?: Json | null
+          name: string
+        }
+        Update: {
+          capacity?: number | null
+          id?: string
+          layout?: Json | null
+          location?: string
+          metadata?: Json | null
+          name?: string
         }
         Relationships: []
       }

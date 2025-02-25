@@ -1,53 +1,60 @@
 'use client';
 
-import { useParams } from 'next/navigation';
-import { useEffect, useState } from 'react';
-import { PracticeSessionPlayer } from '@/components/PracticeSessionPlayer';
-import { supabase } from '@/utils/supabase';
+import { useState, useEffect } from 'react';
+import { supabaseClient } from '@/lib/supabaseClient';
+import type { Database } from '@/types/database.types';
 
-interface PracticeSession {
-  id: string;
-  name: string;
-  project_id: string | null;  // Updated to allow null
-  created_at: string;
-  updated_at: string;
-}
+type PracticeSession = Database['public']['Tables']['practice_sessions']['Row'];
+type Asset = Database['public']['Tables']['assets']['Row'];
 
-export default function PracticeSessionPage() {
-  const params = useParams();
+export default function PracticeSessionPage({ params }: { params: { id: string } }) {
   const [session, setSession] = useState<PracticeSession | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [assets, setAssets] = useState<Asset[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    async function fetchSession() {
-      if (!params.id || typeof params.id !== 'string') return;  // Type guard for params.id
-      
+    const fetchData = async () => {
       try {
-        const { data, error } = await supabase
+        // Fetch practice session
+        const { data: sessionData, error: sessionError } = await supabaseClient
           .from('practice_sessions')
           .select('*')
           .eq('id', params.id)
           .single();
 
-        if (error) throw error;
-        setSession(data as PracticeSession);  // Type assertion
-      } catch (error) {
-        console.error('Error fetching session:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    }
+        if (sessionError) throw sessionError;
+        if (sessionData) setSession(sessionData);
 
-    fetchSession();
+        // Fetch related assets
+        const { data: assetsData, error: assetsError } = await supabaseClient
+          .from('assets')
+          .select('*')
+          .eq('project_id', sessionData?.project_id ?? '')
+          .eq('department', sessionData?.department ?? '');
+
+        if (assetsError) throw assetsError;
+        if (assetsData) setAssets(assetsData);
+      } catch (error) {
+        console.error('Error fetching data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
   }, [params.id]);
 
-  if (isLoading) {
-    return <div>Loading...</div>;
-  }
+  if (loading) return <div>Loading...</div>;
+  if (!session) return <div>Session not found</div>;
 
-  if (!session) {
-    return <div>Session not found</div>;
-  }
-
-  return <PracticeSessionPlayer sessionId={session.id} sessionName={session.name} />;
+  return (
+    <div>
+      <h1>{session.name}</h1>
+      <ul>
+        {assets.map((asset) => (
+          <li key={asset.id}>{asset.name}</li>
+        ))}
+      </ul>
+    </div>
+  );
 }

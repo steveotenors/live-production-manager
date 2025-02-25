@@ -1,147 +1,96 @@
-import { useEffect, useState } from 'react';
-import { Card, CardContent } from '@/components/ui/card';
-import { FileText, Download, Trash2 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { supabase } from '@/utils/supabase';
-import { DBFile } from '@/types/supabase';
+import { useState, useEffect } from 'react'
+import { Button } from '@/components/ui/button'
+import { Trash } from 'lucide-react'
+import { supabaseClient } from '@/lib/supabaseClient'
+import { Database } from '@/types/database.types'
+import { Card, CardContent } from '@/components/ui/card'
+
+type Asset = Database['public']['Tables']['assets']['Row']
 
 interface FileListProps {
-  projectId: string;
-  onFileDeleted: () => void;
-  refreshTrigger: number;
+  projectId: string
+  onFileDeleted: () => void
+  refreshTrigger: number
 }
 
 export function FileList({ projectId, onFileDeleted, refreshTrigger }: FileListProps) {
-  const [files, setFiles] = useState<DBFile[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-
-  const fetchFiles = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('files')
-        .select('*')
-        .eq('project_id', projectId)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      setFiles(data || []);
-    } catch (error) {
-      console.error('Error fetching files:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const [assets, setAssets] = useState<Asset[]>([])
+  const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
-    fetchFiles();
-  }, [projectId, refreshTrigger]); // Add refreshTrigger to dependencies
-
-  const handleDownload = async (file: DBFile) => {
-    try {
-      const { data, error } = await supabase.storage
-        .from('project-files')
-        .download(file.storage_path);
-
-      if (error) throw error;
-
-      const url = URL.createObjectURL(data);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = file.name;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-    } catch (error) {
-      console.error('Error downloading file:', error);
-      alert('Error downloading file. Please try again.');
+    async function fetchAssets() {
+      const { data, error } = await supabaseClient
+        .from('assets')
+        .select('*')
+        .eq('project_id', projectId)
+        .eq('department', 'musical')
+        .order('created_at', { ascending: false })
+      if (error) {
+        console.error('Error fetching assets:', error)
+      } else {
+        setAssets(data || [])
+      }
+      setIsLoading(false)
     }
-  };
+    fetchAssets()
+  }, [projectId, refreshTrigger])
 
-  const handleDelete = async (file: DBFile) => {
-    if (!confirm('Are you sure you want to delete this file?')) return;
-
+  async function handleDelete(assetId: string) {
+    if (!confirm('Are you sure you want to delete this asset?')) return
     try {
-      const { error: storageError } = await supabase.storage
+      const { error: storageError } = await supabaseClient.storage
         .from('project-files')
-        .remove([file.storage_path]);
+        .remove([`${projectId}/${assets.find(a => a.id === assetId)?.name}`])
+      if (storageError) throw storageError
 
-      if (storageError) throw storageError;
-
-      const { error: dbError } = await supabase
-        .from('files')
+      const { error: dbError } = await supabaseClient
+        .from('assets')
         .delete()
-        .eq('id', file.id);
+        .eq('id', assetId)
+      if (dbError) throw dbError
 
-      if (dbError) throw dbError;
-
-      onFileDeleted();
+      onFileDeleted()
     } catch (error) {
-      console.error('Error deleting file:', error);
-      alert('Error deleting file. Please try again.');
+      console.error('Error deleting asset:', error)
+      alert('Error deleting asset')
     }
-  };
-
-  const formatFileSize = (bytes: number) => {
-    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
-    if (bytes === 0) return '0 Byte';
-    const i = parseInt(Math.floor(Math.log(bytes) / Math.log(1024)).toString());
-    return Math.round((bytes / Math.pow(1024, i)) * 100) / 100 + ' ' + sizes[i];
-  };
-
-  if (isLoading) {
-    return <div>Loading files...</div>;
   }
 
-  if (files.length === 0) {
-    return (
-      <div className="text-center py-8 text-gray-500">
-        No files uploaded yet
-      </div>
-    );
+  if (isLoading) {
+    return <div>Loading...</div>
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-      {files.map((file) => (
-        <Card key={file.id} className="hover:shadow-lg transition-shadow">
-          <CardContent className="p-4">
-            <div className="flex items-start justify-between space-x-4">
-              <div className="flex items-start space-x-3 min-w-0 flex-1">
-                <FileText className="h-5 w-5 mt-1 text-blue-500 flex-shrink-0" />
-                <div className="min-w-0">
-                  <h3 className="font-medium text-sm truncate max-w-[200px]" title={file.name}>
-                    {file.name}
-                  </h3>
-                  <p className="text-xs text-gray-500">
-                    {formatFileSize(file.size)}
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      {assets.length === 0 ? (
+        <p className="text-gray-500">No assets yet</p>
+      ) : (
+        assets.map((asset) => (
+          <Card key={asset.id} className="hover:shadow-lg transition-shadow">
+            <CardContent className="p-6">
+              <div className="flex justify-between items-center">
+                <div>
+                  <h3 className="font-semibold">{asset.name}</h3>
+                  <p className="text-sm text-gray-500">
+                    Type: {asset.file_type}, Version: {asset.version}
+                  </p>
+                  <p className="text-sm text-gray-500">
+                    Created: {new Date(asset.created_at).toLocaleDateString()}
                   </p>
                 </div>
-              </div>
-              <div className="flex flex-shrink-0 space-x-1">
                 <Button
-                  variant="ghost"
+                  variant="outline"
                   size="sm"
-                  onClick={() => handleDownload(file)}
-                  title="Download"
-                  className="h-8 w-8 p-0"
+                  className="text-red-600 hover:bg-red-50"
+                  onClick={() => handleDelete(asset.id)}
                 >
-                  <Download className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => handleDelete(file)}
-                  title="Delete"
-                  className="h-8 w-8 p-0"
-                >
-                  <Trash2 className="h-4 w-4 text-red-500" />
+                  <Trash className="h-4 w-4" />
                 </Button>
               </div>
-            </div>
-          </CardContent>
-        </Card>
-      ))}
+            </CardContent>
+          </Card>
+        ))
+      )}
     </div>
-  );
+  )
 }

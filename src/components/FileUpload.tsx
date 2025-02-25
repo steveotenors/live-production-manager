@@ -1,79 +1,100 @@
-import { useState } from 'react';
-import { Button } from '@/components/ui/button';
-import { Upload } from 'lucide-react';
-import { supabase } from '@/utils/supabase';
+import { useState, useRef } from 'react'
+import { Button } from '@/components/ui/button'
+import { Upload } from 'lucide-react'
+import { supabaseClient } from '@/lib/supabaseClient'
+import { Database } from '@/types/database.types'
+
+type Asset = Database['public']['Tables']['assets']['Row']
 
 interface FileUploadProps {
-  projectId: string;
-  onUploadComplete: () => void;
+  projectId: string
+  onUploadComplete: () => void
 }
 
 export function FileUpload({ projectId, onUploadComplete }: FileUploadProps) {
-  const [isUploading, setIsUploading] = useState(false);
+  const [isUploading, setIsUploading] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [fileType, setFileType] = useState('score') // Default to "score" for musical assets
+  const [version, setVersion] = useState('v1.0')
 
-  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = event.target.files;
-    if (!files || files.length === 0) return;
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
 
-    setIsUploading(true);
-    
+    setIsUploading(true)
     try {
-      for (const file of files) {
-        const fileExt = file.name.split('.').pop();
-        const fileName = `${Math.random()}.${fileExt}`;
-        const filePath = `${projectId}/${fileName}`;
+      // Upload file to Supabase storage
+      const { data: storageData, error: storageError } = await supabaseClient.storage
+        .from('project-files')
+        .upload(`${projectId}/${file.name}`, file)
 
-        const { error: uploadError } = await supabase.storage
-          .from('project-files')
-          .upload(filePath, file);
+      if (storageError) throw storageError
 
-        if (uploadError) throw uploadError;
+      // Save asset metadata to database with musical metadata
+      const { error: dbError } = await supabaseClient
+        .from('assets')
+        .insert([{
+          project_id: projectId,
+          name: file.name,
+          size: file.size,
+          type: file.type,  // MIME type (e.g., "application/pdf", "audio/mpeg")
+          storage_path: storageData.path,
+          department: 'musical',
+          file_type: fileType,  // Custom type (score, audio_stem, midi, etc.)
+          version: version,
+          waveform_length: fileType === 'audio_stem' || fileType === 'midi' ? '00:00:00' : null,  // Placeholder for audio/midi
+          metadata: { 
+            tempo: 120,  // Default tempo for musical assets
+            key: '',     // Empty for now, user can update later
+            instrumentation: ''  // Empty for now, user can update later
+          }
+        }])
 
-        const { error: dbError } = await supabase
-          .from('files')
-          .insert([{
-            project_id: projectId,
-            name: file.name,
-            size: file.size,
-            type: file.type,
-            storage_path: filePath
-          }]);
+      if (dbError) throw dbError
 
-        if (dbError) throw dbError;
-      }
-
-      // Clear the input value to allow uploading the same file again
-      event.target.value = '';
-      
-      // Trigger the refresh
-      onUploadComplete();
+      onUploadComplete()
     } catch (error) {
-      console.error('Error uploading file:', error);
-      alert('Error uploading file. Please try again.');
+      console.error('Error uploading file:', error)
+      alert('Error uploading file')
     } finally {
-      setIsUploading(false);
+      setIsUploading(false)
     }
-  };
+  }
 
   return (
     <div>
-      <Button 
-        variant="outline" 
-        disabled={isUploading}
-        asChild
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handleFileChange}
+        className="hidden"
+      />
+      <select
+        value={fileType}
+        onChange={(e) => setFileType(e.target.value)}
+        className="mr-2 p-2 border rounded"
       >
-        <label className="cursor-pointer flex items-center">
-          <Upload className="h-4 w-4 mr-2" />
-          {isUploading ? 'Uploading...' : 'Upload Files'}
-          <input
-            type="file"
-            className="hidden"
-            onChange={handleFileChange}
-            multiple
-            disabled={isUploading}
-          />
-        </label>
+        <option value="score">Score</option>
+        <option value="audio_stem">Audio Stem</option>
+        <option value="midi">MIDI</option>
+        <option value="mp3">MP3</option>
+        <option value="click">Click Track</option>
+      </select>
+      <input
+        type="text"
+        value={version}
+        onChange={(e) => setVersion(e.target.value)}
+        placeholder="Version (e.g., v1.0)"
+        className="mr-2 p-2 border rounded"
+      />
+      <Button
+        variant="outline"
+        onClick={() => fileInputRef.current?.click()}
+        disabled={isUploading}
+      >
+        <Upload className="mr-2 h-4 w-4" />
+        {isUploading ? 'Uploading...' : 'Upload File'}
       </Button>
     </div>
-  );
+  )
 }
