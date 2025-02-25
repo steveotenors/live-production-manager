@@ -154,19 +154,6 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
               </TabsTrigger>
             </TabsList>
 
-        //</Tabs><Tabs defaultValue="files" className="space-y-4">
-          //<TabsList className="bg-muted">
-            //<TabsTrigger value="files" className="data-[state=active]:bg-background">
-              //<FileText className="h-4 w-4 mr-2" /> Files
-            //</TabsTrigger>
-            //<TabsTrigger value="practice" className="data-[state=active]:bg-background">
-              //<Play className="h-4 w-4 mr-2" /> Practice Sessions
-            //</TabsTrigger>
-            //<TabsTrigger value="schedule" className="data-[state=active]:bg-background">
-              //<Calendar className="h-4 w-4 mr-2" /> Schedule
-            //</TabsTrigger>
-          //</TabsList>
-
           <TabsContent value="files" className="space-y-4">
             <Card>
               <CardHeader>
@@ -249,5 +236,6 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
         </div>
       </div>
     </div>
-  </div>
-);
+    </div>
+  );
+}
