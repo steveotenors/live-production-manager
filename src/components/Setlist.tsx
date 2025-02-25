@@ -10,7 +10,7 @@ import { Plus, GripVertical, Trash, Clock, Save } from 'lucide-react'
 import { toast } from 'sonner'
 
 interface SetlistProps {
-  projectId: string
+  projectId: string | number // Support both string and number types
 }
 
 interface Song {
@@ -31,15 +31,19 @@ export function Setlist({ projectId }: SetlistProps) {
         const { data } = await supabaseClient
           .from('projects')
           .select('metadata')
-          .eq('id', projectId)
+          .eq('id', Number(projectId))
           .single()
       
-        if (data?.metadata && typeof data.metadata === 'object' && 'setlist' in data.metadata) {
-          setSongs(data.metadata.setlist as Song[])
+            // Safer access to nested JSON fields
+        if (data?.metadata && typeof data.metadata === 'object') {
+            const metadata = data.metadata as Record<string, unknown>;
+            if ('setlist' in metadata && Array.isArray(metadata.setlist)) {
+            setSongs(metadata.setlist as Song[]);
+            }
         }
-      } catch (error) {
-        console.error('Error loading setlist:', error)
-      }
+        } catch (error) {
+        console.error('Error loading setlist:', error);
+        }
     }
     
     loadSetlist()
@@ -97,31 +101,33 @@ export function Setlist({ projectId }: SetlistProps) {
       const { data: currentData } = await supabaseClient
         .from('projects')
         .select('metadata')
-        .eq('id', projectId)
+        .eq('id', Number(projectId))
         .single()
       
-      // Prepare the updated metadata
-      const updatedMetadata = {
-        ...(currentData?.metadata as object || {}),
-        setlist: songs
-      }
-      
-      // Update with the new metadata
-      await supabaseClient
-        .from('projects')
-        .update({
-          metadata: updatedMetadata
-        })
-        .eq('id', projectId)
-      
-      toast.success('Setlist saved successfully')
-    } catch (error) {
-      console.error('Error saving setlist:', error)
-      toast.error('Failed to save setlist')
-    } finally {
-      setIsLoading(false)
-    }
+    // Initialize metadata as empty object if null
+    const currentMetadata = currentData?.metadata && typeof currentData.metadata === 'object' 
+        ? currentData.metadata as Record<string, unknown>
+        : {};
+    
+    // Update with the new setlist
+    await supabaseClient
+      .from('projects')
+      .update({
+        metadata: {
+          ...currentMetadata,
+          setlist: songs
+        }
+      })
+      .eq('id', Number(projectId));
+    
+    toast.success('Setlist saved successfully');
+  } catch (error) {
+    console.error('Error saving setlist:', error);
+    toast.error('Failed to save setlist');
+  } finally {
+    setIsLoading(false);
   }
+}
 
   function removeSong(id: string) {
     setSongs(songs.filter(song => song.id !== id))

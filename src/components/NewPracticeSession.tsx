@@ -24,13 +24,14 @@ export function NewPracticeSession({ projectId, onSessionCreated }: NewPracticeS
     setIsLoading(true)
     try {
       const { error } = await supabaseClient
-        .from('practice_sessions')
-        .insert([{
-          project_id: projectId,
-          name,
-          department: 'musical',
-          metadata: { tempo, notes, difficulty: 'medium' }  // Default difficulty
-        }])
+      .from('practice_sessions')
+      .insert([{
+        project_id: Number(projectId),
+        name,
+        department: 'musical',
+        date: new Date().toISOString(), // Required field in your DB
+        notes: `tempo: ${tempo}\n${notes}` // Store tempo in notes since metadata doesn't exist
+      }]);
       if (error) throw error
       onSessionCreated()
       setIsOpen(false)

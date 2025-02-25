@@ -9,10 +9,10 @@ import { Database } from '@/types/database.types'
 import { Card, CardContent } from '@/components/ui/card'
 import { Json } from '@/types/database.types'
 
-type Asset = Database['public']['Tables']['assets']['Row']
+type Asset = Database['public']['Tables']['assets']['Row'];
 
 interface FileListProps {
-  projectId: string
+  projectId: string | number // Support both string and number types
   onFileDeleted: () => void
   refreshTrigger: number
 }
@@ -28,7 +28,7 @@ export function FileList({ projectId, onFileDeleted, refreshTrigger }: FileListP
         const { data, error } = await supabaseClient
           .from('assets')
           .select('*')
-          .eq('project_id', projectId)
+          .eq('project_id', Number(projectId))
           .eq('department', 'musical')
           .order('created_at', { ascending: false })
         
@@ -69,19 +69,19 @@ export function FileList({ projectId, onFileDeleted, refreshTrigger }: FileListP
   async function handleDelete(assetId: string) {
     if (!confirm('Are you sure you want to delete this asset?')) return
     try {
-      const asset = assets.find(a => a.id === assetId);
+      const asset = assets.find(a => a.id === Number(assetId));
       if (!asset) return;
       
       const { error: storageError } = await supabaseClient.storage
         .from('project-files')
-        .remove([asset.storage_path])
+        .remove([asset.storage_path || ''])
       
       if (storageError) throw storageError
 
       const { error: dbError } = await supabaseClient
         .from('assets')
         .delete()
-        .eq('id', assetId)
+        .eq('id', Number(assetId))
       
       if (dbError) throw dbError
 
@@ -120,7 +120,7 @@ export function FileList({ projectId, onFileDeleted, refreshTrigger }: FileListP
   }
 
   async function handleViewFile(asset: Asset) {
-    const url = await getFileUrl(asset.storage_path);
+    const url = await getFileUrl(asset.storage_path || '');
     if (url) {
       window.open(url, '_blank');
     } else {
@@ -129,7 +129,7 @@ export function FileList({ projectId, onFileDeleted, refreshTrigger }: FileListP
   }
 
   async function handleDownloadFile(asset: Asset) {
-    const url = await getFileUrl(asset.storage_path);
+    const url = await getFileUrl(asset.storage_path || '');
     if (url) {
       const a = document.createElement('a');
       a.href = url;
@@ -161,21 +161,23 @@ export function FileList({ projectId, onFileDeleted, refreshTrigger }: FileListP
                 <CardContent className="p-0">
                   <div className="p-4 flex items-start space-x-4">
                     <div className="flex-shrink-0">
-                      {getFileIcon(asset.file_type, asset.type)}
+                      {getFileIcon(asset.type, asset.type)}
                     </div>
                     <div className="flex-1 min-w-0">
                       <h4 className="font-semibold text-foreground truncate" title={asset.name}>
                         {asset.name}
                       </h4>
                       <p className="text-sm text-muted-foreground">
-                        Type: {asset.file_type || 'Unknown'}
-                        {asset.version && `, Version: ${asset.version}`}
+                        Type: {asset.type || 'Unknown'}
+                        {asset.metadata && typeof asset.metadata === 'object' && 
+                         'version' in asset.metadata && 
+                         `, Version: ${asset.metadata.version}`}
                       </p>
                       <p className="text-sm text-muted-foreground">
-                        Size: {Math.round(asset.size / 1024).toLocaleString()} KB
+                        Size: {Math.round(asset.size || 0 / 1024).toLocaleString()} KB
                       </p>
                       <p className="text-sm text-muted-foreground">
-                        Uploaded: {new Date(asset.created_at).toLocaleDateString()}
+                        Uploaded: {new Date(asset.created_at || '').toLocaleDateString()}
                       </p>
                     </div>
                   </div>
@@ -200,7 +202,7 @@ export function FileList({ projectId, onFileDeleted, refreshTrigger }: FileListP
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => handleDelete(asset.id)}
+                      onClick={() => handleDelete(asset.id.toString())}
                       className="text-destructive hover:text-destructive/90"
                     >
                       <Trash className="h-4 w-4" />

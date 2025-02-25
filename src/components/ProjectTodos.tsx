@@ -29,7 +29,7 @@ export function ProjectTodos({ projectId }: ProjectTodosProps) {
         const { data, error } = await supabaseClient
           .from('tasks')
           .select('*')
-          .eq('project_id', projectId)
+          .eq('project_id', Number(projectId))
           .order('created_at', { ascending: false })
         
         if (error) throw error
@@ -51,9 +51,9 @@ export function ProjectTodos({ projectId }: ProjectTodosProps) {
       
       const { data, error } = await supabaseClient
         .from('tasks')
-        .insert([
+        .insert([   
           {
-            project_id: projectId,
+            project_id: Number(projectId),
             description: newTodo,
             status: 'pending',
             department: 'musical'

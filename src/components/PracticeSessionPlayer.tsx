@@ -36,7 +36,7 @@ export default function PracticeSessionPlayer() {
         const { data, error } = await supabaseClient
           .from('practice_sessions')
           .select('*')
-          .eq('id', sessionId)
+          .eq('id', Number(sessionId))
           .single()
         
         if (error) throw error
@@ -44,8 +44,18 @@ export default function PracticeSessionPlayer() {
         setSession(data)
         
         // Initialize tempo from session metadata
-        if (data?.metadata && typeof data.metadata === 'object' && 'tempo' in data.metadata) {
-          setTempo((data.metadata as any).tempo || 120)
+        if (data?.notes) {
+          try {
+            const notesText = data.notes || '';
+            const tempoMatch = notesText.match(/tempo:\s*(\d+)/i);
+            if (tempoMatch && tempoMatch[1]) {
+              setTempo(parseInt(tempoMatch[1]));
+            } else {
+              setTempo(120); // Default
+            }
+          } catch (e) {
+            setTempo(120); // Default
+          }
         }
         
         // Fetch assets for this project
@@ -100,7 +110,7 @@ export default function PracticeSessionPlayer() {
       try {
         const { data } = await supabaseClient.storage
           .from('project-files')
-          .createSignedUrl(selectedAsset.storage_path, 3600) // 1 hour expiry
+          .createSignedUrl(selectedAsset.storage_path || '', 3600) // 1 hour expiry
         
         setFileUrl(data?.signedUrl || null)
       } catch (error) {
@@ -113,7 +123,7 @@ export default function PracticeSessionPlayer() {
   }, [selectedAsset])
 
   function handleAssetSelect(assetId: string) {
-    const asset = assets.find(a => a.id === assetId) || null
+    const asset = assets.find(a => a.id === Number(assetId)) || null
     setSelectedAsset(asset)
   }
 
@@ -151,7 +161,7 @@ export default function PracticeSessionPlayer() {
     <div className="min-h-screen bg-background text-foreground p-6">
       <div className="max-w-7xl mx-auto">
         <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold">{session.name}</h1>
+          <h1 className="text-2xl font-bold">Practice Session</h1>
           <Link href={`/project/${session.project_id}`}>
             <Button variant="outline">
               <ArrowLeft className="mr-2 h-4 w-4" /> Back to Project
