@@ -9,20 +9,17 @@ import { Input } from '@/components/ui/input'
 import { Plus, Check, Save, Trash } from 'lucide-react'
 import { toast } from 'sonner'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Database } from '@/types/database.types'
 
 interface ProjectTodosProps {
-  projectId: string
+  projectId: string | number // Support both string and number types
 }
 
-interface Todo {
-  id: string
-  text: string
-  completed: boolean
-  created_at: string
-}
+// Map to the actual database structure
+type TaskRow = Database['public']['Tables']['tasks']['Row'];
 
 export function ProjectTodos({ projectId }: ProjectTodosProps) {
-  const [todos, setTodos] = useState<Todo[]>([])
+  const [todos, setTodos] = useState<TaskRow[]>([])
   const [newTodo, setNewTodo] = useState('')
   const [isLoading, setIsLoading] = useState(false)
 
@@ -66,7 +63,10 @@ export function ProjectTodos({ projectId }: ProjectTodosProps) {
       
       if (error) throw error
       
-      setTodos([...(data || []), ...todos])
+      if (data) {
+        setTodos([...data, ...todos])
+      }
+      
       setNewTodo('')
       toast.success('Task added')
     } catch (error) {

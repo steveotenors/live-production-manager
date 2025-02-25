@@ -7,7 +7,11 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "check-updates": "npm outdated"
+    "check-updates": "npm outdated",
+    "update-types": "npx supabase gen types typescript --project-id your-project-id > src/types/database.types.ts",
+    "validate-schema": "ts-node scripts/validate-schema.ts",
+    "generate-types": "npx supabase gen types typescript --project-id lecbmcgxtfxrmrompczw > src/types/database.types.ts",
+    "db:migration:new": "npx supabase migration new"
   },
   "dependencies": {
     "@radix-ui/react-checkbox": "^1.1.4",
@@ -46,6 +50,7 @@
     "shadcn-ui": "^0.9.4",
     "supabase": "^2.12.1",
     "tailwindcss": "^3.4.17",
+    "ts-node": "^10.9.2",
     "typescript": "^5"
   }
 }

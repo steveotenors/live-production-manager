@@ -1,12 +1,18 @@
 import { redirect } from 'next/navigation';
 import { getServerUser } from '@/lib/supabase';
 import React from 'react';
+import { Navbar } from '@/components/Navbar';
 
 export default async function AuthLayout({ children }: { children: React.ReactNode }) {
   try {
     const { user, role } = await getServerUser();
     // User is authenticated and authorized (musical_director)
-    return <>{children}</>;
+    return (
+      <>
+        <Navbar />
+        {children}
+      </>
+    );
   } catch (error) {
     if (error instanceof Error) {
       if (error.message === 'User not authenticated') {

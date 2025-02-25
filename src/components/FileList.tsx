@@ -7,6 +7,7 @@ import { Trash, File, Music, Video, FileText, FileCode, Download, Eye } from 'lu
 import { supabaseClient } from '@/lib/supabaseClient'
 import { Database } from '@/types/database.types'
 import { Card, CardContent } from '@/components/ui/card'
+import { Json } from '@/types/database.types'
 
 type Asset = Database['public']['Tables']['assets']['Row']
 
@@ -38,7 +39,16 @@ export function FileList({ projectId, onFileDeleted, refreshTrigger }: FileListP
           
           // Group by song
           const grouped = data.reduce((groups: Record<string, Asset[]>, asset) => {
-            const song = asset.metadata?.song || asset.song || 'Uncategorized';
+            // Safely access song from metadata or fallback to "Uncategorized"
+            let song = "Uncategorized";
+            
+            if (asset.metadata && typeof asset.metadata === 'object') {
+              const metadata = asset.metadata as Record<string, unknown>;
+              if ('song' in metadata && typeof metadata.song === 'string') {
+                song = metadata.song;
+              }
+            }
+            
             if (!groups[song]) groups[song] = [];
             groups[song].push(asset);
             return groups;

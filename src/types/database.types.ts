@@ -11,60 +11,35 @@ export type Database = {
     Tables: {
       assets: {
         Row: {
-          created_at: string
-          department: string | null
-          file_type: string | null
-          folder_id: string | null
-          id: string
+          created_at: string | null
+          department: string
+          id: number
           metadata: Json | null
           name: string
-          project_id: string | null
-          size: number
-          storage_path: string
+          project_id: number | null
           type: string
-          version: string | null
-          waveform_length: unknown | null
         }
         Insert: {
-          created_at?: string
-          department?: string | null
-          file_type?: string | null
-          folder_id?: string | null
-          id?: string
+          created_at?: string | null
+          department?: string
+          id?: number
           metadata?: Json | null
           name: string
-          project_id?: string | null
-          size: number
-          storage_path: string
+          project_id?: number | null
           type: string
-          version?: string | null
-          waveform_length?: unknown | null
         }
         Update: {
-          created_at?: string
-          department?: string | null
-          file_type?: string | null
-          folder_id?: string | null
-          id?: string
+          created_at?: string | null
+          department?: string
+          id?: number
           metadata?: Json | null
           name?: string
-          project_id?: string | null
-          size?: number
-          storage_path?: string
+          project_id?: number | null
           type?: string
-          version?: string | null
-          waveform_length?: unknown | null
         }
         Relationships: [
           {
-            foreignKeyName: "files_folder_id_fkey"
-            columns: ["folder_id"]
-            isOneToOne: false
-            referencedRelation: "folders"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "files_project_id_fkey"
+            foreignKeyName: "assets_project_id_fkey"
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "projects"
@@ -77,22 +52,22 @@ export type Database = {
           created_at: string
           id: string
           name: string
-          path: string[]
-          project_id: string | null
+          path: string[] | null
+          project_id: number | null
         }
         Insert: {
           created_at?: string
           id?: string
           name: string
-          path?: string[]
-          project_id?: string | null
+          path?: string[] | null
+          project_id?: number | null
         }
         Update: {
           created_at?: string
           id?: string
           name?: string
-          path?: string[]
-          project_id?: string | null
+          path?: string[] | null
+          project_id?: number | null
         }
         Relationships: [
           {
@@ -104,78 +79,33 @@ export type Database = {
           },
         ]
       }
-      practice_session_files: {
-        Row: {
-          bar_offset: number | null
-          created_at: string
-          file_id: string | null
-          file_type: string
-          id: string
-          part_name: string | null
-          practice_session_id: string | null
-        }
-        Insert: {
-          bar_offset?: number | null
-          created_at?: string
-          file_id?: string | null
-          file_type: string
-          id?: string
-          part_name?: string | null
-          practice_session_id?: string | null
-        }
-        Update: {
-          bar_offset?: number | null
-          created_at?: string
-          file_id?: string | null
-          file_type?: string
-          id?: string
-          part_name?: string | null
-          practice_session_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "practice_session_files_file_id_fkey"
-            columns: ["file_id"]
-            isOneToOne: false
-            referencedRelation: "assets"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "practice_session_files_practice_session_id_fkey"
-            columns: ["practice_session_id"]
-            isOneToOne: false
-            referencedRelation: "practice_sessions"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       practice_sessions: {
         Row: {
-          created_at: string
-          department: string | null
-          id: string
-          metadata: Json | null
-          name: string
-          project_id: string | null
-          updated_at: string
+          created_at: string | null
+          date: string
+          department: string
+          id: number
+          notes: string | null
+          project_id: number | null
+          updated_at: string | null
         }
         Insert: {
-          created_at?: string
-          department?: string | null
-          id?: string
-          metadata?: Json | null
-          name: string
-          project_id?: string | null
-          updated_at?: string
+          created_at?: string | null
+          date: string
+          department?: string
+          id?: number
+          notes?: string | null
+          project_id?: number | null
+          updated_at?: string | null
         }
         Update: {
-          created_at?: string
-          department?: string | null
-          id?: string
-          metadata?: Json | null
-          name?: string
-          project_id?: string | null
-          updated_at?: string
+          created_at?: string | null
+          date?: string
+          department?: string
+          id?: number
+          notes?: string | null
+          project_id?: number | null
+          updated_at?: string | null
         }
         Relationships: [
           {
@@ -189,117 +119,62 @@ export type Database = {
       }
       projects: {
         Row: {
-          composer_arranger: string | null
-          created_at: string
-          department: string | null
-          id: string
+          created_at: string | null
+          department: string
+          id: number
           metadata: Json | null
+          musical_director_id: string | null
           name: string
-          order_index: number | null
-          owner: string | null
-          piece_name: string | null
-          updated_at: string
-          version_number: string | null
+          updated_at: string | null
         }
         Insert: {
-          composer_arranger?: string | null
-          created_at?: string
-          department?: string | null
-          id?: string
+          created_at?: string | null
+          department?: string
+          id?: number
           metadata?: Json | null
+          musical_director_id?: string | null
           name: string
-          order_index?: number | null
-          owner?: string | null
-          piece_name?: string | null
-          updated_at?: string
-          version_number?: string | null
+          updated_at?: string | null
         }
         Update: {
-          composer_arranger?: string | null
-          created_at?: string
-          department?: string | null
-          id?: string
+          created_at?: string | null
+          department?: string
+          id?: number
           metadata?: Json | null
+          musical_director_id?: string | null
           name?: string
-          order_index?: number | null
-          owner?: string | null
-          piece_name?: string | null
-          updated_at?: string
-          version_number?: string | null
+          updated_at?: string | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "projects_owner_fkey"
-            columns: ["owner"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      schedules: {
-        Row: {
-          department: string | null
-          description: string
-          end_time: string | null
-          id: string
-          metadata: Json | null
-          project_id: string | null
-          start_time: string
-        }
-        Insert: {
-          department?: string | null
-          description: string
-          end_time?: string | null
-          id?: string
-          metadata?: Json | null
-          project_id?: string | null
-          start_time: string
-        }
-        Update: {
-          department?: string | null
-          description?: string
-          end_time?: string | null
-          id?: string
-          metadata?: Json | null
-          project_id?: string | null
-          start_time?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "schedules_project_id_fkey"
-            columns: ["project_id"]
-            isOneToOne: false
-            referencedRelation: "projects"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       tasks: {
         Row: {
+          created_at: string
           department: string | null
           description: string
           due_date: string | null
           id: string
-          project_id: string | null
+          project_id: number | null
           status: string | null
           user_id: string | null
         }
         Insert: {
+          created_at?: string
           department?: string | null
           description: string
           due_date?: string | null
           id?: string
-          project_id?: string | null
+          project_id?: number | null
           status?: string | null
           user_id?: string | null
         }
         Update: {
+          created_at?: string
           department?: string | null
           description?: string
           due_date?: string | null
           id?: string
-          project_id?: string | null
+          project_id?: number | null
           status?: string | null
           user_id?: string | null
         }
@@ -322,52 +197,19 @@ export type Database = {
       }
       users: {
         Row: {
-          department: string
-          email: string
-          full_name: string | null
+          email: string | null
           id: string
-          role: string
+          role: string | null
         }
         Insert: {
-          department: string
-          email: string
-          full_name?: string | null
-          id?: string
-          role: string
-        }
-        Update: {
-          department?: string
-          email?: string
-          full_name?: string | null
-          id?: string
-          role?: string
-        }
-        Relationships: []
-      }
-      venues: {
-        Row: {
-          capacity: number | null
+          email?: string | null
           id: string
-          layout: Json | null
-          location: string
-          metadata: Json | null
-          name: string
-        }
-        Insert: {
-          capacity?: number | null
-          id?: string
-          layout?: Json | null
-          location: string
-          metadata?: Json | null
-          name: string
+          role?: string | null
         }
         Update: {
-          capacity?: number | null
+          email?: string | null
           id?: string
-          layout?: Json | null
-          location?: string
-          metadata?: Json | null
-          name?: string
+          role?: string | null
         }
         Relationships: []
       }

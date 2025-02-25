@@ -34,8 +34,8 @@ export function Setlist({ projectId }: SetlistProps) {
           .eq('id', projectId)
           .single()
       
-        if (data?.metadata?.setlist) {
-          setSongs(data.metadata.setlist)
+        if (data?.metadata && typeof data.metadata === 'object' && 'setlist' in data.metadata) {
+          setSongs(data.metadata.setlist as Song[])
         }
       } catch (error) {
         console.error('Error loading setlist:', error)
@@ -92,15 +92,25 @@ export function Setlist({ projectId }: SetlistProps) {
 
   async function saveSongs() {
     setIsLoading(true)
-    try async function saveSongs() {
-        setIsLoading(true)
     try {
+      // First get the current metadata
+      const { data: currentData } = await supabaseClient
+        .from('projects')
+        .select('metadata')
+        .eq('id', projectId)
+        .single()
+      
+      // Prepare the updated metadata
+      const updatedMetadata = {
+        ...(currentData?.metadata as object || {}),
+        setlist: songs
+      }
+      
+      // Update with the new metadata
       await supabaseClient
         .from('projects')
         .update({
-          metadata: {
-            setlist: songs
-          }
+          metadata: updatedMetadata
         })
         .eq('id', projectId)
       
