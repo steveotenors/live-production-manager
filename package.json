@@ -8,8 +8,8 @@
     "start": "next start",
     "lint": "next lint",
     "check-updates": "npm outdated",
-    "update-types": "npx supabase gen types typescript --project-id your-project-id > src/types/database.types.ts",
-    "validate-schema": "ts-node scripts/validate-schema.ts",
+    "update-types": "npx supabase gen types typescript --project-id lecbmcgxtfxrmrompczw > src/types/database.types.ts",
+    "validate-schema": "node --loader ts-node/esm scripts/validate-schema.mts",
     "generate-types": "npx supabase gen types typescript --project-id lecbmcgxtfxrmrompczw > src/types/database.types.ts",
     "db:migration:new": "npx supabase migration new"
   },
