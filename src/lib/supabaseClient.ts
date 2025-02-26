@@ -15,14 +15,8 @@ const cookieStorage = {
   removeItem: async (key: string) => Cookies.remove(key, { path: '/' }),
 };
 
+// Client-side Supabase client
 export const supabaseClient = createClient<Database>(
-  supabaseUrl,
-  supabaseAnonKey,
-  {
-    auth: {
-      persistSession: true,
-      storageKey: 'supabase-auth',
-      autoRefreshToken: true,
-    },
-  }
+  process.env.NEXT_PUBLIC_SUPABASE_URL || '',
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
 );

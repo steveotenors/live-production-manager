@@ -12,7 +12,8 @@
     "validate-schema": "node scripts/validate-schema.js",
     "db:migration:new": "npx supabase migration new",
     "db:migration:up": "npx supabase migration up",
-    "generate-types": "npx supabase gen types typescript --project-id lecbmcgxtfxrmrompczw > src/types/database.types.ts"
+    "generate-types": "npx supabase gen types typescript --project-id lecbmcgxtfxrmrompczw > src/types/database.types.ts",
+    "postinstall": "npm install @radix-ui/react-dialog"
   },
   "dependencies": {
     "@radix-ui/react-checkbox": "^1.1.4",
