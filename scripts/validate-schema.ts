@@ -1,6 +1,6 @@
 // scripts/validate-schema.ts
 import { createClient } from '@supabase/supabase-js';
-import { SCHEMA } from '../src/schema/supabase-schema';
+import { SCHEMA, generateTableCreationSQL, generateRLSPolicy } from '../src/schema/supabase-schema';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -46,7 +46,7 @@ async function validateSchema() {
     // Generate SQL for missing tables
     const migrationSQL = missingTables.map(tableName => {
       console.log(`  - ${tableName}`);
-      return SCHEMA.generateTableCreationSQL(tableName) + SCHEMA.generateRLSPolicy(tableName);
+      return generateTableCreationSQL(tableName) + generateRLSPolicy(tableName);
     }).join('\n');
     
     // Save SQL to migration file

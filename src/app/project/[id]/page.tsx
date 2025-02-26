@@ -30,7 +30,7 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
         const { data, error } = await supabaseClient
           .from('projects')
           .select('*')
-          .eq('id', params.id)
+          .eq('id', Number(params.id))
           .single();
 
         if (error) throw error;
@@ -49,7 +49,7 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
         const { data, error } = await supabaseClient
           .from('practice_sessions')
           .select('*')
-          .eq('project_id', params.id)
+          .eq('project_id', Number(params.id))
           .order('created_at', { ascending: false });
 
         if (error) throw error;
@@ -198,7 +198,7 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
                           <CardContent className="p-6">
                             <h3 className="font-semibold text-foreground mb-2">{session.name}</h3>
                             <p className="text-sm text-muted-foreground">
-                              Created: {new Date(session.created_at).toLocaleDateString()}
+                              Created: {new Date(session.created_at || '').toLocaleDateString()}
                             </p>
                             {session.metadata && typeof session.metadata === 'object' && (
                               <div className="mt-2 text-sm">
