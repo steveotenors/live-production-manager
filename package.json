@@ -9,9 +9,10 @@
     "lint": "next lint",
     "check-updates": "npm outdated",
     "update-types": "npx supabase gen types typescript --project-id lecbmcgxtfxrmrompczw > src/types/database.types.ts",
-    "validate-schema": "node --loader ts-node/esm scripts/validate-schema.mts",
-    "generate-types": "npx supabase gen types typescript --project-id lecbmcgxtfxrmrompczw > src/types/database.types.ts",
-    "db:migration:new": "npx supabase migration new"
+    "validate-schema": "node scripts/validate-schema.js",
+    "db:migration:new": "npx supabase migration new",
+    "db:migration:up": "npx supabase migration up",
+    "generate-types": "npx supabase gen types typescript --project-id lecbmcgxtfxrmrompczw > src/types/database.types.ts"
   },
   "dependencies": {
     "@radix-ui/react-checkbox": "^1.1.4",
@@ -24,6 +25,7 @@
     "@supabase/supabase-js": "^2.48.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "dotenv": "^16.4.7",
     "js-cookie": "^3.0.5",
     "lucide-react": "^0.475.0",
     "next": "^15.1.7",
