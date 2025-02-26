@@ -12,6 +12,7 @@ import { Play, Pause, SkipBack, SkipForward, RefreshCw, ArrowLeft } from 'lucide
 import Link from 'next/link'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { getSignedUrl } from '@/lib/supabase-storage'
 
 type PracticeSession = Database['public']['Tables']['practice_sessions']['Row']
 type Asset = Database['public']['Tables']['assets']['Row']
@@ -108,11 +109,8 @@ export default function PracticeSessionPlayer() {
       }
       
       try {
-        const { data } = await supabaseClient.storage
-          .from('project-files')
-          .createSignedUrl(selectedAsset.storage_path || '', 3600) // 1 hour expiry
-        
-        setFileUrl(data?.signedUrl || null)
+        const signedUrl = await getSignedUrl(selectedAsset.storage_path || '', 3600); // 1 hour expiry
+        setFileUrl(signedUrl)
       } catch (error) {
         console.error('Error getting file URL:', error)
         setFileUrl(null)
@@ -186,8 +184,8 @@ export default function PracticeSessionPlayer() {
                     </SelectTrigger>
                     <SelectContent>
                       {assets.map((asset) => (
-                        <SelectItem key={asset.id} value={asset.id}>
-                          {asset.name} ({asset.file_type})
+                        <SelectItem key={asset.id} value={String(asset.id)}>
+                          {asset.name} ({(asset.metadata as any)?.file_type || 'file'})
                         </SelectItem>
                       ))}
                     </SelectContent>

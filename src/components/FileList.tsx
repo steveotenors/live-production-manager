@@ -8,6 +8,7 @@ import { supabaseClient } from '@/lib/supabaseClient'
 import { Database } from '@/types/database.types'
 import { Card, CardContent } from '@/components/ui/card'
 import { Json } from '@/types/database.types'
+import { deleteFile, getSignedUrl } from '@/lib/supabase-storage'
 
 type Asset = Database['public']['Tables']['assets']['Row'];
 
@@ -72,12 +73,10 @@ export function FileList({ projectId, onFileDeleted, refreshTrigger }: FileListP
       const asset = assets.find(a => a.id === Number(assetId));
       if (!asset) return;
       
-      const { error: storageError } = await supabaseClient.storage
-        .from('project-files')
-        .remove([asset.storage_path || ''])
+      if (asset.storage_path) {
+        await deleteFile(asset.storage_path);
+      }
       
-      if (storageError) throw storageError
-
       const { error: dbError } = await supabaseClient
         .from('assets')
         .delete()
@@ -94,14 +93,11 @@ export function FileList({ projectId, onFileDeleted, refreshTrigger }: FileListP
 
   async function getFileUrl(filePath: string) {
     try {
-      const { data } = await supabaseClient.storage
-        .from('project-files')
-        .createSignedUrl(filePath, 3600) // 1 hour expiry
-      
-      return data?.signedUrl
+      const signedUrl = await getSignedUrl(filePath, 3600);
+      return signedUrl || '';
     } catch (error) {
       console.error('Error getting file URL:', error)
-      return null
+      return ''
     }
   }
 

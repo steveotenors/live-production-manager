@@ -9,6 +9,7 @@ import { Database } from '@/types/database.types'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { uploadFile } from '@/lib/supabase-storage'
 
 type Asset = Database['public']['Tables']['assets']['Row']
 
@@ -37,22 +38,19 @@ export function FileUpload({ projectId, onUploadComplete }: FileUploadProps) {
     
     setIsUploading(true)
     try {
-      // Upload file to Supabase storage
-      const { data: storageData, error: storageError } = await supabaseClient.storage
-        .from('project-files')
-        .upload(`${projectId}/${selectedFile.name}`, selectedFile)
-
-      if (storageError) throw storageError
+      // Upload file to Supabase storage using the shared function
+      const storagePath = `${projectId}/${selectedFile.name}`;
+      const fileUrl = await uploadFile(selectedFile, projectId);
 
       // Save asset metadata to database with musical metadata
       const { error: dbError } = await supabaseClient
         .from('assets')
-        .insert([{
-          project_id: projectId,
+        .insert({
+          project_id: parseInt(projectId, 10),
           name: selectedFile.name,
           size: selectedFile.size,
           type: selectedFile.type,
-          storage_path: storageData.path,
+          storage_path: storagePath,
           department: 'musical',
           file_type: fileType,
           version: version,
@@ -63,7 +61,7 @@ export function FileUpload({ projectId, onUploadComplete }: FileUploadProps) {
             key: '',
             instrumentation: ''
           }
-        }])
+        })
 
       if (dbError) throw dbError
 

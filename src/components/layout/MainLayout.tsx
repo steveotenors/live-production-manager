@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Music, FileText, Calendar, ListChecks, Home, LogOut } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Toaster } from '@/components/ui/toaster';
 
 interface MainLayoutProps {
   children: ReactNode;
@@ -106,6 +107,9 @@ export function MainLayout({ children }: MainLayoutProps) {
       
       {/* Padding for mobile navigation */}
       <div className="h-16 md:hidden" />
+      
+      {/* Toast notifications */}
+      <Toaster />
     </div>
   );
 }

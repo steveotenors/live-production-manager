@@ -1,16 +1,16 @@
 /**
  * Represents a file or folder item
  */
-export type FileItem = {
+export interface FileItem {
   id: string;
   name: string;
   type: 'folder' | 'file';
   fileType?: string;
-  size?: number;
-  updated?: string;
   path: string;
+  size?: number;
+  updated: string;
   url?: string;
-};
+}
 
 /**
  * Upload status for tracking file uploads
