@@ -2,6 +2,7 @@
 
 import { FileItem } from '@/types/files';
 import { supabaseClient } from './supabaseClient';
+import { toast } from '@/components/ui/use-toast';
 
 // Utility function to delay execution
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -10,198 +11,283 @@ const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 const STORAGE_BUCKET = 'production-files';
 
 /**
- * List files in the specified path
- * @param path Directory path to list
- * @returns Array of file items
+ * List files in a specific path in the bucket
+ * @param path Current path to list files from
+ * @param bucketName Storage bucket name
+ * @returns Array of file and folder items
  */
-export async function listFiles(path: string): Promise<FileItem[]> {
-  console.log(`[DEBUG-listFiles] Starting with path: "${path}"`);
-  console.log(`[DEBUG-listFiles] Using bucket: "${STORAGE_BUCKET}"`);
-  
-  // Normalize the path
-  const normalizedPath = path.endsWith('/') ? path : `${path}/`;
-  console.log(`[DEBUG-listFiles] Normalized path: "${normalizedPath}"`);
-  
+export async function listFiles(
+  path: string = '',
+  bucketName: string = 'production-files'
+): Promise<FileItem[]> {
   try {
-    // IMPORTANT: Direct access approach
-    // Instead of first checking for bucket existence, we directly access the bucket
-    // This works even when the anon key doesn't have permission to list buckets
-    console.log(`[DEBUG-listFiles] Directly accessing bucket: "${STORAGE_BUCKET}"`);
+    console.log(`Listing files from ${bucketName}/${path}`);
     
-    // Small delay before file listing request
-    await delay(500);
+    // Normalize path to ensure it has the correct format
+    const normalizedPath = path.endsWith('/') || path === '' ? path : `${path}/`;
     
-    const { data: objects, error } = await supabaseClient.storage
-      .from(STORAGE_BUCKET)  // Direct access to the known bucket
-      .list(normalizedPath, {
-        sortBy: { column: 'name', order: 'asc' }
+    // Get user session first to ensure authenticated
+    const { data: sessionData } = await supabaseClient.auth.getSession();
+    if (!sessionData.session) {
+      console.error('No active session found');
+      toast({
+        title: 'Authentication Error',
+        description: 'Please log in to access files',
+        variant: 'destructive',
       });
-    
-    console.log(`[DEBUG-listFiles] Supabase response:`, { objects, error });
-    
-    if (error) {
-      console.error('[DEBUG-listFiles] Error listing files:', error);
-      throw error;
-    }
-    
-    if (!objects) {
-      console.log('[DEBUG-listFiles] No objects returned');
       return [];
     }
     
-    console.log(`[DEBUG-listFiles] Processing ${objects.length} objects`);
+    // List all objects in the path
+    const { data, error } = await supabaseClient.storage
+      .from(bucketName)
+      .list(normalizedPath, {
+        limit: 100,
+        offset: 0,
+        sortBy: { column: 'name', order: 'asc' },
+      });
     
-    // Parse the objects into our file format
-    const fileItems: FileItem[] = objects.map(obj => {
-      console.log(`[DEBUG-listFiles] Processing object:`, obj);
+    if (error) {
+      console.error('Error listing files:', error.message);
+      throw new Error(`Failed to list files: ${error.message}`);
+    }
+    
+    if (!data) {
+      return [];
+    }
+    
+    // Process and format the files
+    const files: FileItem[] = data.map((item) => {
+      const isFolder = !!item.id && !item.metadata;
+      const filePath = normalizedPath + item.name;
       
-      // Determine if the object is a folder
-      const isFolder = !obj.metadata || obj.metadata.size === undefined;
-      
-      // Get file extension for file type
-      let fileType = '';
-      if (!isFolder && obj.name.includes('.')) {
-        fileType = obj.name.split('.').pop()?.toLowerCase() || '';
-      }
-      
-      // Get public URL for files
-      let url = undefined;
-      if (!isFolder) {
-        try {
-          const { data } = supabaseClient.storage
-            .from(STORAGE_BUCKET)
-            .getPublicUrl(normalizedPath + obj.name);
-          url = data.publicUrl;
-        } catch (e) {
-          console.error(`[DEBUG-listFiles] Failed to get public URL for ${obj.name}:`, e);
-        }
-      }
-      
-      const fileItem = {
-        id: obj.id || `${normalizedPath}${obj.name}`,
-        name: obj.name,
-        type: (isFolder ? 'folder' : 'file') as 'folder' | 'file',
-        fileType: fileType,
-        path: normalizedPath + obj.name + (isFolder ? '/' : ''),
-        size: !isFolder && obj.metadata?.size ? Number(obj.metadata.size) : undefined,
-        updated: obj.updated_at || '',
-        url: url
+      return {
+        id: item.id || `file-${item.name}`,
+        name: item.name,
+        type: isFolder ? 'folder' : 'file',
+        size: item.metadata?.size || 0,
+        updated: item.updated_at,
+        created_at: item.created_at,
+        path: isFolder ? filePath : normalizedPath + item.name,
+        metadata: item.metadata,
       };
-      
-      console.log(`[DEBUG-listFiles] Created FileItem:`, fileItem);
-      return fileItem;
     });
     
-    console.log(`[DEBUG-listFiles] Returning ${fileItems.length} FileItems`);
-    return fileItems;
+    console.log(`Retrieved ${files.length} items`);
+    return files;
   } catch (error) {
-    console.error('[DEBUG-listFiles] Error:', error);
-    throw error;
+    console.error('Error in listFiles:', error);
+    toast({
+      title: 'Error Loading Files',
+      description: error instanceof Error ? error.message : 'An unknown error occurred',
+      variant: 'destructive',
+    });
+    return [];
   }
 }
 
 /**
  * Delete a file or folder from storage
- * @param path Path to the file or folder to delete
- * @returns Result of the deletion operation
+ * @param path Path of the file or folder to delete
+ * @param bucketName Storage bucket name
  */
-export async function deleteFile(path: string) {
+export async function deleteFile(
+  path: string,
+  bucketName: string = 'production-files'
+): Promise<void> {
   try {
-    // Check if it's a folder (ends with /)
-    if (path.endsWith('/')) {
-      // List all files in the folder
-      const files = await listFiles(path);
+    console.log(`Deleting ${path} from ${bucketName}`);
+    
+    // Check if path ends with / (a folder)
+    const isFolder = path.endsWith('/') || (path.split('/').pop() || '').indexOf('.') === -1;
+    
+    if (isFolder) {
+      // If it's a folder, we need to:
+      // 1. List all files in the folder
+      // 2. Delete all files in the folder
+      // 3. Delete the folder itself (empty folders don't exist in object storage)
       
-      // Delete each file/subfolder recursively
-      for (const file of files) {
-        await deleteFile(file.path);
+      // Ensure path ends with /
+      const folderPath = path.endsWith('/') ? path : `${path}/`;
+      
+      // List all files in the folder
+      const { data, error } = await supabaseClient.storage
+        .from(bucketName)
+        .list(folderPath);
+      
+      if (error) {
+        throw new Error(`Failed to list folder contents: ${error.message}`);
       }
       
-      // The folder itself is removed when empty in Supabase Storage
-      return { success: true };
-    } else {
-      // It's a file, delete it directly
-      const { data, error } = await supabaseClient.storage
-        .from(STORAGE_BUCKET)
-        .remove([path]);
-        
-      if (error) throw error;
+      // Delete all files and subfolders recursively
+      for (const item of data || []) {
+        const itemPath = `${folderPath}${item.name}`;
+        if (!item.metadata) { // It's a subfolder
+          await deleteFile(itemPath, bucketName);
+        } else { // It's a file
+          const { error: deleteError } = await supabaseClient.storage
+            .from(bucketName)
+            .remove([itemPath]);
+          
+          if (deleteError) {
+            throw new Error(`Failed to delete file ${itemPath}: ${deleteError.message}`);
+          }
+        }
+      }
       
-      return { success: true, data };
+      // Folders are automatically removed when empty in object storage
+      console.log(`Folder ${folderPath} and its contents deleted successfully`);
+    } else {
+      // It's a file, just delete it directly
+      const { error } = await supabaseClient.storage
+        .from(bucketName)
+        .remove([path]);
+      
+      if (error) {
+        throw new Error(`Failed to delete file: ${error.message}`);
+      }
+      
+      console.log(`File ${path} deleted successfully`);
     }
   } catch (error) {
-    console.error('Error deleting file:', error);
+    console.error('Error in deleteFile:', error);
     throw error;
   }
 }
 
 /**
- * Uploads a file to Supabase Storage
- * @param file The file to upload
- * @param path The path where to upload the file (e.g., 'documents/')
- * @returns A promise resolving to the uploaded file URL
+ * Create a new folder in storage
+ * @param currentPath Current directory path
+ * @param folderName Name of the new folder
+ * @param bucketName Storage bucket name
  */
-export async function uploadFile(file: File, path: string = ''): Promise<string> {
+export async function createFolder(
+  currentPath: string = '',
+  folderName: string,
+  bucketName: string = 'production-files'
+): Promise<void> {
   try {
-    // Normalize the path
-    const normalizedPath = path ? path.endsWith('/') ? path : `${path}/` : '';
-    const filePath = `${normalizedPath}${file.name}`;
+    console.log(`Creating folder ${folderName} in ${currentPath}`);
+    
+    // Sanitize folder name (remove any leading/trailing slashes)
+    const sanitizedFolderName = folderName.replace(/^\/+|\/+$/g, '');
+    
+    if (!sanitizedFolderName) {
+      throw new Error('Folder name cannot be empty');
+    }
+    
+    // Format the path correctly
+    let fullPath = currentPath;
+    if (fullPath && !fullPath.endsWith('/')) {
+      fullPath += '/';
+    }
+    fullPath += `${sanitizedFolderName}/.gitkeep`;
+    
+    // In object storage, folders are created by adding a placeholder file
+    const { error } = await supabaseClient.storage
+      .from(bucketName)
+      .upload(fullPath, new Uint8Array(0), {
+        contentType: 'application/octet-stream',
+        upsert: false,
+      });
+    
+    if (error) {
+      if (error.message.includes('already exists')) {
+        throw new Error(`A folder named '${sanitizedFolderName}' already exists`);
+      }
+      throw new Error(`Failed to create folder: ${error.message}`);
+    }
+    
+    console.log(`Folder ${sanitizedFolderName} created successfully`);
+  } catch (error) {
+    console.error('Error in createFolder:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get a signed URL for a file
+ * @param path Path to the file
+ * @param bucketName Storage bucket name
+ * @param expiresIn Expiration time in seconds (default: 60)
+ * @returns Signed URL
+ */
+export async function getSignedUrl(
+  path: string,
+  bucketName: string = 'production-files',
+  expiresIn: number = 60
+): Promise<string> {
+  try {
+    const { data, error } = await supabaseClient.storage
+      .from(bucketName)
+      .createSignedUrl(path, expiresIn);
+    
+    if (error) {
+      console.error('Error generating signed URL:', error.message);
+      throw new Error(`Failed to generate signed URL: ${error.message}`);
+    }
+    
+    return data.signedUrl;
+  } catch (error) {
+    console.error('Error in getSignedUrl:', error);
+    throw error;
+  }
+}
+
+/**
+ * Upload a file with optional path
+ * @param file File to upload
+ * @param path Path to upload to (optional)
+ * @param bucketName Storage bucket name
+ * @returns Upload result
+ */
+export async function uploadFile(
+  file: File,
+  path: string = '',
+  bucketName: string = 'production-files'
+): Promise<{ path: string; url: string }> {
+  try {
+    // Generate a unique filename to avoid collisions
+    const timestamp = new Date().getTime();
+    const originalName = file.name;
+    const ext = originalName.split('.').pop();
+    const baseFileName = originalName.substring(0, originalName.lastIndexOf('.'));
+    const newFileName = `${baseFileName}-${timestamp}.${ext}`;
+    
+    // Construct the full path
+    let fullPath = path;
+    if (fullPath && !fullPath.endsWith('/')) {
+      fullPath += '/';
+    }
+    fullPath += newFileName;
     
     // Upload the file
     const { data, error } = await supabaseClient.storage
-      .from(STORAGE_BUCKET)
-      .upload(filePath, file, {
+      .from(bucketName)
+      .upload(fullPath, file, {
         cacheControl: '3600',
-        upsert: true // Changed to true to allow overwriting existing files
+        upsert: false,
       });
     
     if (error) {
-      console.error('Error uploading file:', error.message);
-      throw error;
+      throw new Error(`Failed to upload file: ${error.message}`);
     }
     
-    if (!data) {
-      throw new Error('No data returned from upload');
+    if (!data?.path) {
+      throw new Error('Upload succeeded but path is missing from response');
     }
     
-    // Get the public URL for the uploaded file
+    // Get the public URL
     const { data: urlData } = supabaseClient.storage
-      .from(STORAGE_BUCKET)
-      .getPublicUrl(filePath);
+      .from(bucketName)
+      .getPublicUrl(data.path);
     
-    return urlData.publicUrl;
+    return {
+      path: data.path,
+      url: urlData.publicUrl,
+    };
   } catch (error) {
-    console.error('Failed to upload file:', error);
-    throw error;
-  }
-}
-
-/**
- * Creates a new folder in Supabase Storage
- * @param path The current path
- * @param folderName The name of the new folder
- * @returns A promise that resolves when the folder is created
- */
-export async function createFolder(path: string, folderName: string): Promise<void> {
-  try {
-    // Normalize the path
-    const normalizedPath = path ? path.endsWith('/') ? path : `${path}/` : '';
-    const folderPath = `${normalizedPath}${folderName}/.placeholder`;
-    
-    // Create an empty file as a placeholder to create the folder
-    const { error } = await supabaseClient.storage
-      .from(STORAGE_BUCKET)
-      .upload(folderPath, new Blob(['']), {
-        contentType: 'text/plain',
-        upsert: false
-      });
-    
-    if (error) {
-      console.error('Error creating folder:', error.message);
-      throw error;
-    }
-  } catch (error) {
-    console.error('Failed to create folder:', error);
+    console.error('Error in uploadFile:', error);
     throw error;
   }
 }
@@ -297,33 +383,6 @@ async function deleteFilesRecursively(path: string): Promise<void> {
   } catch (error) {
     console.error(`Failed to process path ${path}:`, error);
     throw error;
-  }
-}
-
-/**
- * Creates a signed URL for accessing a file
- * @param path The path of the file
- * @param expiresIn Expiry time in seconds (default: 3600 = 1 hour)
- * @returns A promise that resolves to the signed URL string
- */
-export async function getSignedUrl(path: string, expiresIn: number = 3600): Promise<string | null> {
-  try {
-    // Add delay to prevent rate limiting
-    await delay(500);
-    
-    const { data, error } = await supabaseClient.storage
-      .from(STORAGE_BUCKET)
-      .createSignedUrl(path, expiresIn);
-    
-    if (error) {
-      console.error('Error creating signed URL:', error.message);
-      throw error;
-    }
-    
-    return data?.signedUrl || null;
-  } catch (error) {
-    console.error('Failed to create signed URL:', error);
-    return null;
   }
 }
 

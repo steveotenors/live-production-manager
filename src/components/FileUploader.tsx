@@ -1,294 +1,419 @@
-import React, { useState, useCallback } from 'react';
+'use client';
+
+import { useState, useCallback, useRef } from 'react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-// Using the fallback version that doesn't require the extra package
-import { Progress } from '@/components/ui/progress-fallback';
-import { Card, CardContent } from '@/components/ui/card';
 import { toast } from '@/components/ui/use-toast';
 import { supabaseClient } from '@/lib/supabaseClient';
-import { Upload, X, File, AlertCircle } from 'lucide-react';
+import { Progress } from '@/components/ui/progress-fallback';
+import { FileUploadStatus } from '@/types/files';
+import { UploadIcon, FileIcon, XIcon, AlertCircle, Check } from 'lucide-react';
 
+// Create an interface for component props
 interface FileUploaderProps {
   bucketName: string;
-  onUploadComplete: () => void;
+  onUploadComplete?: () => void;
   allowedFileTypes?: string[];
+  currentPath?: string;
 }
 
-// Define a progress tracking interface
-interface UploadProgress {
-  loaded: number;
-  total: number;
-}
+// Maximum file size (10MB)
+const MAX_FILE_SIZE = 10 * 1024 * 1024;
 
 export default function FileUploader({ 
   bucketName, 
   onUploadComplete,
-  allowedFileTypes = ['.mp3', '.wav', '.ogg', '.aac', '.pdf'] 
+  allowedFileTypes = ['.mp3', '.wav', '.ogg', '.pdf', '.doc', '.docx', '.txt'],
+  currentPath = '',
 }: FileUploaderProps) {
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [uploading, setUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [dragActive, setDragActive] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [uploadStatus, setUploadStatus] = useState<FileUploadStatus[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Handle file selection
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const fileList = e.target.files;
+    if (fileList) {
+      const filesArray = Array.from(fileList);
+      setSelectedFiles(filesArray);
+      setUploadStatus(filesArray.map(file => ({
+        file,
+        progress: 0,
+        status: 'pending'
+      })));
+    }
+  };
 
   // Handle drag events
-  const handleDrag = useCallback((e: React.DragEvent) => {
+  const handleDrag = useCallback((e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.stopPropagation();
+    
     if (e.type === 'dragenter' || e.type === 'dragover') {
-      setDragActive(true);
+      setIsDragging(true);
     } else if (e.type === 'dragleave') {
-      setDragActive(false);
+      setIsDragging(false);
     }
   }, []);
-
+  
   // Handle drop event
-  const handleDrop = useCallback((e: React.DragEvent) => {
+  const handleDrop = useCallback((e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.stopPropagation();
-    setDragActive(false);
+    setIsDragging(false);
     
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      // Just take the first file for now
-      setSelectedFile(e.dataTransfer.files[0]);
+    const fileList = e.dataTransfer.files;
+    if (fileList) {
+      const filesArray = Array.from(fileList);
+      setSelectedFiles(filesArray);
+      setUploadStatus(filesArray.map(file => ({
+        file,
+        progress: 0,
+        status: 'pending'
+      })));
     }
   }, []);
 
-  // Handle file selection via input
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) {
-      setSelectedFile(e.target.files[0]);
-    }
-  };
-
-  // Handle file upload
+  // Upload the selected files
   const handleUpload = async () => {
-    if (!selectedFile) {
+    if (selectedFiles.length === 0) {
       toast({
-        title: 'No File Selected',
-        description: 'Please select a file to upload.',
+        title: 'No files selected',
+        description: 'Please select at least one file to upload.',
         variant: 'destructive',
       });
       return;
     }
 
-    // Check file extension
-    const fileName = selectedFile.name.toLowerCase();
-    const validFileType = allowedFileTypes.some(type => fileName.endsWith(type));
-    
-    if (!validFileType) {
-      toast({
-        title: 'Invalid File Type',
-        description: `Only ${allowedFileTypes.join(', ')} files are allowed.`,
-        variant: 'destructive',
-      });
-      return;
-    }
+    setIsUploading(true);
 
-    try {
-      setUploading(true);
-      setUploadProgress(0);
+    // Update all status to 'uploading'
+    setUploadStatus(prev => prev.map(item => ({
+      ...item,
+      status: 'uploading',
+    })));
+
+    for (let i = 0; i < selectedFiles.length; i++) {
+      const file = selectedFiles[i];
+      const fileName = file.name;
       
-      // Create a unique file name to avoid overwriting existing files
-      const timestamp = new Date().getTime();
-      const fileExtension = fileName.split('.').pop() || '';
-      const uniqueFileName = `${fileName.split('.')[0]}_${timestamp}.${fileExtension}`;
-      
-      // Setup a progress tracker
-      let uploadProgress = 0;
-      const progressInterval = setInterval(() => {
-        if (uploadProgress < 95) {
-          uploadProgress += Math.random() * 5;
-          setUploadProgress(Math.min(Math.round(uploadProgress), 95));
-        }
-      }, 200);
-      
-      // Upload the file
-      const { error } = await supabaseClient.storage
-        .from(bucketName)
-        .upload(uniqueFileName, selectedFile, {
-          cacheControl: '3600',
+      // Check for file size
+      if (file.size > MAX_FILE_SIZE) {
+        setUploadStatus(prev => {
+          const updated = [...prev];
+          updated[i] = {
+            ...updated[i],
+            status: 'error',
+            progress: 0,
+            error: 'File exceeds the maximum size limit (10MB)'
+          };
+          return updated;
         });
-
-      clearInterval(progressInterval);
+        continue;
+      }
       
-      if (error) {
-        throw error;
+      // Check for file type
+      const fileExt = fileName.split('.').pop()?.toLowerCase();
+      if (!fileExt || !allowedFileTypes.some(type => 
+        type.toLowerCase() === `.${fileExt}` || type.toLowerCase() === fileExt
+      )) {
+        setUploadStatus(prev => {
+          const updated = [...prev];
+          updated[i] = {
+            ...updated[i],
+            status: 'error',
+            progress: 0,
+            error: `File type .${fileExt} is not allowed`
+          };
+          return updated;
+        });
+        continue;
       }
 
-      // Complete the progress
-      setUploadProgress(100);
-
-      // Success
-      toast({
-        title: 'Upload Successful',
-        description: 'Your file has been uploaded.',
-      });
-      
-      // Reset state after a short delay to show 100% progress
-      setTimeout(() => {
-        setSelectedFile(null);
-        setUploadProgress(0);
-        setUploading(false);
+      try {
+        // Create a unique file name to avoid overwriting
+        const timestamp = new Date().getTime();
+        const uniqueName = `${fileName.substring(0, fileName.lastIndexOf('.'))}-${timestamp}.${fileExt}`;
         
-        // Notify parent component to refresh file list
+        // Build path incorporating the current folder path
+        let fullPath = currentPath;
+        if (fullPath && !fullPath.endsWith('/')) {
+          fullPath += '/';
+        }
+        fullPath += uniqueName;
+
+        // Track upload progress
+        let uploadProgress = 0;
+
+        // Create an XHR to track progress
+        const xhr = new XMLHttpRequest();
+        
+        // Create a promise that resolves with the upload result
+        const uploadPromise = new Promise<void>((resolve, reject) => {
+          xhr.upload.addEventListener('progress', (event) => {
+            if (event.lengthComputable) {
+              uploadProgress = Math.round((event.loaded / event.total) * 100);
+              // Update progress in state
+              setUploadStatus(prev => {
+                const updated = [...prev];
+                updated[i] = {
+                  ...updated[i],
+                  progress: uploadProgress
+                };
+                return updated;
+              });
+            }
+          });
+          
+          xhr.addEventListener('load', () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+              resolve();
+            } else {
+              reject(new Error(`Upload failed with status ${xhr.status}`));
+            }
+          });
+          
+          xhr.addEventListener('error', () => {
+            reject(new Error('Network error occurred during upload'));
+          });
+          
+          xhr.addEventListener('abort', () => {
+            reject(new Error('Upload was aborted'));
+          });
+        });
+        
+        // Start the upload using Supabase
+        const { error } = await supabaseClient.storage
+          .from(bucketName)
+          .upload(fullPath, file, {
+            cacheControl: '3600',
+            upsert: false,
+            // Use type assertion to work around the type error with xhr
+            ...(xhr ? { xhr } as any : {})
+          });
+          
+        // Wait for the XHR promise to resolve/reject
+        await uploadPromise;
+
+        if (error) {
+          throw error;
+        }
+
+        // Update status to completed
+        setUploadStatus(prev => {
+          const updated = [...prev];
+          updated[i] = {
+            ...updated[i],
+            status: 'completed',
+            progress: 100,
+            path: fullPath
+          };
+          return updated;
+        });
+
+        toast({
+          title: 'Upload Complete',
+          description: `${fileName} has been uploaded successfully.`,
+        });
+      } catch (error) {
+        console.error('Upload error:', error);
+        
+        // Update status to error
+        setUploadStatus(prev => {
+          const updated = [...prev];
+          updated[i] = {
+            ...updated[i],
+            status: 'error',
+            error: error instanceof Error ? error.message : 'Unknown upload error'
+          };
+          return updated;
+        });
+
+        toast({
+          title: 'Upload Failed',
+          description: error instanceof Error ? error.message : 'Unknown upload error',
+          variant: 'destructive',
+        });
+      }
+    }
+
+    setIsUploading(false);
+    
+    // If all completed successfully, invoke the callback
+    if (uploadStatus.every(item => item.status === 'completed')) {
+      if (onUploadComplete) {
         onUploadComplete();
-      }, 800);
-    } catch (error: any) {
-      console.error('Error uploading file:', error);
-      toast({
-        title: 'Upload Failed',
-        description: error.message || 'An error occurred during upload.',
-        variant: 'destructive',
-      });
-      setUploading(false);
-      setUploadProgress(0);
+      }
     }
   };
 
-  // Reset file selection
-  const handleReset = () => {
-    setSelectedFile(null);
-    setUploadProgress(0);
+  // Reset all state
+  const resetFiles = () => {
+    setSelectedFiles([]);
+    setUploadStatus([]);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
   };
 
-  // Format file size
-  const formatFileSize = (bytes: number) => {
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
-  };
-
-  // Format the allowed file types in a readable way
+  // Format list of allowed file types
   const formatAllowedTypes = () => {
-    return allowedFileTypes.join(', ').replace(/\./g, '');
+    return allowedFileTypes.join(', ');
+  };
+
+  // Format file size in human-readable format
+  const formatFileSize = (bytes: number) => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
   return (
     <div className="space-y-6">
-      {/* Drag and drop area */}
-      <div
-        className={`border-2 border-dashed rounded-lg p-6 transition-colors ${
-          dragActive ? 'border-primary bg-primary/5' : 'border-border'
-        } relative`}
+      {currentPath && (
+        <div className="p-3 border rounded-md bg-muted/30">
+          <p className="text-sm text-muted-foreground">
+            Files will be uploaded to: <span className="font-medium">{currentPath.length > 0 ? currentPath : 'Root directory'}</span>
+          </p>
+        </div>
+      )}
+    
+      <div 
+        className={`border-2 border-dashed rounded-lg p-8 text-center ${
+          isDragging ? 'border-primary bg-primary/5' : 'border-muted-foreground/20'
+        }`}
         onDragEnter={handleDrag}
-        onDragLeave={handleDrag}
         onDragOver={handleDrag}
+        onDragLeave={handleDrag}
         onDrop={handleDrop}
       >
-        <input
-          type="file"
-          id="file-upload"
-          onChange={handleFileChange}
-          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-          disabled={uploading}
-          accept={allowedFileTypes.join(',')}
-        />
-        
-        <div className="text-center flex flex-col items-center justify-center py-4">
-          <div className={`mb-4 rounded-full p-3 ${dragActive ? 'bg-primary/10' : 'bg-muted'}`}>
-            <Upload className={`h-6 w-6 ${dragActive ? 'text-primary' : 'text-muted-foreground'}`} />
+        <div className="flex flex-col items-center justify-center space-y-4">
+          <div className="h-14 w-14 rounded-full bg-primary/10 flex items-center justify-center">
+            <UploadIcon className="h-7 w-7 text-primary" />
           </div>
-          <h3 className="text-lg font-medium mb-1">
-            {dragActive ? 'Drop your file here' : 'Drag and drop your file here'}
-          </h3>
-          <p className="text-sm text-muted-foreground mb-2">
-            or click to browse
-          </p>
-          <p className="text-xs text-muted-foreground">
-            Supported formats: {formatAllowedTypes()}
-          </p>
-        </div>
-      </div>
-
-      {/* File preview & upload button */}
-      {selectedFile && !uploading && (
-        <div className="bg-muted/30 rounded-lg p-4 flex items-start justify-between">
-          <div className="flex items-center">
-            <div className="bg-background p-2 rounded mr-3">
-              <File className="h-8 w-8 text-primary" />
-            </div>
-            <div>
-              <h4 className="font-medium text-sm break-all">{selectedFile.name}</h4>
-              <p className="text-xs text-muted-foreground mt-1">
-                {formatFileSize(selectedFile.size)}
-              </p>
-            </div>
+          <div>
+            <h3 className="text-lg font-medium">
+              {isDragging ? 'Drop files here' : 'Drag and drop files here'}
+            </h3>
+            <p className="text-sm text-muted-foreground mt-1">
+              or click to browse
+            </p>
           </div>
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileChange}
+            className="hidden"
+            multiple
+          />
           <Button 
-            variant="ghost" 
-            size="sm" 
-            className="ml-2 h-8 w-8 p-0" 
-            onClick={handleReset}
+            variant="outline" 
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isUploading}
           >
-            <X className="h-4 w-4" />
-            <span className="sr-only">Remove</span>
+            Select Files
           </Button>
         </div>
-      )}
-
-      {/* Upload progress */}
-      {uploading && (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between mb-1">
-            <div className="text-sm font-medium">Uploading...</div>
-            <div className="text-sm text-muted-foreground">{uploadProgress}%</div>
-          </div>
-          <Progress value={uploadProgress} />
-          
-          <div className="flex items-start bg-muted/30 rounded-lg p-4">
-            <div className="bg-background p-2 rounded mr-3">
-              <File className="h-6 w-6 text-primary animate-pulse" />
-            </div>
-            <div className="flex-1">
-              <h4 className="font-medium text-sm">{selectedFile?.name}</h4>
-              <div className="flex items-center justify-between mt-1">
-                <p className="text-xs text-muted-foreground">
-                  {selectedFile ? formatFileSize(selectedFile.size) : ''}
-                </p>
-                <p className="text-xs text-primary">
-                  {uploadProgress === 100 ? 'Complete!' : 'Uploading...'}
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* File restrictions info */}
-      <div className="rounded-lg border p-4 flex items-start space-x-3">
-        <AlertCircle className="h-5 w-5 text-muted-foreground mt-0.5 flex-shrink-0" />
-        <div>
-          <h4 className="text-sm font-medium">File Requirements</h4>
-          <ul className="text-xs text-muted-foreground mt-1 space-y-1">
-            <li>• Maximum file size: 50MB</li>
-            <li>• Allowed file types: {formatAllowedTypes()}</li>
-            <li>• Files will be stored in the "{bucketName}" bucket</li>
-          </ul>
-        </div>
       </div>
 
-      {/* Upload button */}
-      <div className="flex justify-end">
-        <Button
-          onClick={handleUpload}
-          disabled={!selectedFile || uploading}
-          className="min-w-[120px]"
-        >
-          {uploading ? (
-            <span className="flex items-center">
-              <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-              </svg>
-              Uploading...
-            </span>
-          ) : (
-            <span className="flex items-center">
-              <Upload className="mr-2 h-4 w-4" />
-              Upload File
-            </span>
-          )}
-        </Button>
+      {selectedFiles.length > 0 && (
+        <div className="border rounded-lg overflow-hidden">
+          <div className="bg-muted/30 p-3 border-b">
+            <h3 className="font-medium">Selected Files</h3>
+          </div>
+          <ul className="divide-y">
+            {uploadStatus.map((status, index) => (
+              <li key={`${status.file.name}-${index}`} className="p-3">
+                <div className="flex items-start justify-between mb-1">
+                  <div className="flex items-center space-x-3">
+                    <div className="flex-shrink-0">
+                      <FileIcon className="h-5 w-5 text-muted-foreground" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{status.file.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {formatFileSize(status.file.size)}
+                      </p>
+                    </div>
+                  </div>
+                  {!isUploading && status.status !== 'completed' && (
+                    <button
+                      onClick={() => {
+                        // Remove this file from both arrays
+                        setSelectedFiles(prev => prev.filter((_, i) => i !== index));
+                        setUploadStatus(prev => prev.filter((_, i) => i !== index));
+                      }}
+                      className="text-muted-foreground hover:text-destructive"
+                    >
+                      <XIcon className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
+                
+                <div className="mt-2">
+                  <Progress value={status.progress} className="h-2" />
+                </div>
+                
+                <div className="mt-1 flex justify-between items-center">
+                  <div className="text-xs">
+                    {status.status === 'pending' && 'Ready to upload'}
+                    {status.status === 'uploading' && `Uploading: ${status.progress}%`}
+                    {status.status === 'completed' && (
+                      <span className="text-green-600 flex items-center">
+                        <Check className="h-3 w-3 mr-1" />
+                        Complete
+                      </span>
+                    )}
+                    {status.status === 'error' && (
+                      <span className="text-red-600 flex items-center">
+                        <AlertCircle className="h-3 w-3 mr-1" />
+                        {status.error}
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {status.progress}%
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+          <div className="border-t p-3 bg-muted/10 flex justify-between">
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={resetFiles}
+              disabled={isUploading}
+            >
+              Clear All
+            </Button>
+            <Button 
+              size="sm"
+              onClick={handleUpload}
+              disabled={isUploading || selectedFiles.length === 0}
+            >
+              {isUploading ? (
+                <>
+                  <span className="animate-spin mr-2">⟳</span>
+                  Uploading...
+                </>
+              ) : (
+                <>
+                  <UploadIcon className="h-4 w-4 mr-2" />
+                  Upload Files
+                </>
+              )}
+            </Button>
+          </div>
+        </div>
+      )}
+      
+      <div className="text-xs text-muted-foreground space-y-1">
+        <p>Maximum file size: 10MB</p>
+        <p>Allowed file types: {formatAllowedTypes()}</p>
       </div>
     </div>
   );

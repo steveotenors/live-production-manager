@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { supabaseClient, checkBucketSettings } from '@/lib/supabaseClient';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -23,7 +23,19 @@ import {
   Info,
   X,
   Maximize2,
-  Eye
+  Eye,
+  Trash2,
+  FolderPlus,
+  Folder,
+  ChevronRight,
+  Home,
+  UploadIcon,
+  Play,
+  Pause,
+  Volume2,
+  VolumeX,
+  SkipForward,
+  SkipBack
 } from 'lucide-react';
 import { 
   DropdownMenu, 
@@ -35,12 +47,54 @@ import {
   Dialog, 
   DialogContent,
   DialogTitle,
-  DialogHeader
+  DialogHeader,
+  DialogFooter,
+  DialogDescription
 } from '@/components/ui/dialog';
+import { deleteFile, createFolder, listFiles } from '@/lib/supabase-storage';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { BreadcrumbItem, FileItem } from '@/types/files';
+import { Toaster } from '@/components/ui/toaster';
+
+// Instead of using styled-jsx, which is causing issues, use a standard style tag
+const dragDropStyles = `
+  .potential-drop-target {
+    outline: 2px dashed #3b82f6;
+    background-color: rgba(59, 130, 246, 0.1);
+  }
+  .folder-item.drag-over {
+    background-color: rgba(59, 130, 246, 0.2) !important;
+    outline: 2px solid #3b82f6 !important;
+    animation: pulse 1.5s infinite;
+  }
+  @keyframes pulse {
+    0% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.4); }
+    70% { box-shadow: 0 0 0 10px rgba(59, 130, 246, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
+  }
+`;
+
+// Extend FileItem to include the properties from Supabase objects
+interface ExtendedFileItem extends FileItem {
+  metadata?: {
+    size?: number;
+    mimetype?: string;
+  };
+  created_at?: string;
+}
 
 export default function FilesPage() {
-  const [files, setFiles] = useState<any[]>([]);
-  const [filteredFiles, setFilteredFiles] = useState<any[]>([]);
+  const [files, setFiles] = useState<ExtendedFileItem[]>([]);
+  const [filteredFiles, setFilteredFiles] = useState<ExtendedFileItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<'grid' | 'list'>('grid');
   const [searchQuery, setSearchQuery] = useState('');
@@ -51,7 +105,36 @@ export default function FilesPage() {
   const [bucketError, setBucketError] = useState<string | null>(null);
   const [previewFile, setPreviewFile] = useState<{name: string, url: string} | null>(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [fileToDelete, setFileToDelete] = useState<{path: string, isFolder: boolean} | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [currentPath, setCurrentPath] = useState<string>('');
+  const [breadcrumbs, setBreadcrumbs] = useState<BreadcrumbItem[]>([]);
+  const [isNewFolderDialogOpen, setIsNewFolderDialogOpen] = useState(false);
+  const [newFolderName, setNewFolderName] = useState('');
+  const [isCreatingFolder, setIsCreatingFolder] = useState(false);
+  const [userRole, setUserRole] = useState<string | null>(null);
+  const [draggedOver, setDraggedOver] = useState<string | null>(null);
+  const [draggedFile, setDraggedFile] = useState<ExtendedFileItem | null>(null);
+  const [isFolderDragOver, setIsFolderDragOver] = useState(false);
+  const [isMovingFile, setIsMovingFile] = useState(false);
   const bucketName = 'production-files';
+  const uploadButtonRef = useRef<HTMLButtonElement>(null);
+  const [contextMenuPosition, setContextMenuPosition] = useState<{x: number, y: number} | null>(null);
+  const [contextMenuFile, setContextMenuFile] = useState<ExtendedFileItem | null>(null);
+  const longPressTimer = useRef<NodeJS.Timeout | null>(null);
+  const longPressDuration = 500; // ms
+  const [isMoveDialogOpen, setIsMoveDialogOpen] = useState(false);
+  const [fileToMove, setFileToMove] = useState<ExtendedFileItem | null>(null);
+  const [availableFolders, setAvailableFolders] = useState<ExtendedFileItem[]>([]);
+  const [isAudioPlayerOpen, setIsAudioPlayerOpen] = useState(false);
+  const [audioFile, setAudioFile] = useState<{name: string, url: string} | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [isMuted, setIsMuted] = useState(false);
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const progressBarRef = useRef<HTMLInputElement>(null);
 
   // File type categories
   const fileTypes = {
@@ -59,11 +142,40 @@ export default function FilesPage() {
     'document': ['.pdf', '.doc', '.docx', '.txt'],
   };
 
-  // Load files on component mount
+  // Load files on component mount or when currentPath changes
   useEffect(() => {
     loadFiles();
     diagnoseStorageAccess();
-  }, []);
+    checkUserRole();
+  }, [currentPath]);
+
+  // Update breadcrumbs when currentPath changes
+  useEffect(() => {
+    const updateBreadcrumbs = () => {
+      // Start with home
+      const items: BreadcrumbItem[] = [
+        { name: 'Home', path: '' }
+      ];
+      
+      // If we're in a subfolder, add each path segment
+      if (currentPath) {
+        const segments = currentPath.split('/').filter(Boolean);
+        let cumulativePath = '';
+        
+        segments.forEach(segment => {
+          cumulativePath += `${segment}/`;
+          items.push({
+            name: segment,
+            path: cumulativePath
+          });
+        });
+      }
+      
+      setBreadcrumbs(items);
+    };
+    
+    updateBreadcrumbs();
+  }, [currentPath]);
 
   // Filter and sort files when dependencies change
   useEffect(() => {
@@ -75,7 +187,7 @@ export default function FilesPage() {
       // Apply type filter
       const matchesType = !filterType || 
         fileTypes[filterType as keyof typeof fileTypes].some(ext => 
-          file.name.toLowerCase().endsWith(ext));
+          file.type === 'file' && file.name.toLowerCase().endsWith(ext));
       
       return matchesSearch && matchesType;
     });
@@ -88,11 +200,11 @@ export default function FilesPage() {
           : b.name.localeCompare(a.name);
       } else if (sortBy === 'date') {
         return sortOrder === 'asc'
-          ? new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime()
-          : new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
+          ? new Date(a.updated || 0).getTime() - new Date(b.updated || 0).getTime()
+          : new Date(b.updated || 0).getTime() - new Date(a.updated || 0).getTime();
       } else { // size
-        const sizeA = a.metadata?.size || 0;
-        const sizeB = b.metadata?.size || 0;
+        const sizeA = a.size || 0;
+        const sizeB = b.size || 0;
         return sortOrder === 'asc' ? sizeA - sizeB : sizeB - sizeA;
       }
     });
@@ -103,15 +215,24 @@ export default function FilesPage() {
   // Diagnose storage access issues
   const diagnoseStorageAccess = async () => {
     try {
+      setLoading(true);
+      
+      // Simple check of bucket settings
       const result = await checkBucketSettings();
       setBucketInfo(result);
       
       if (!result.success) {
         setBucketError(result.message);
+      } else {
+        // Clear any previous errors since we have access
+        setBucketError(null);
       }
+      
+      setLoading(false);
     } catch (error) {
       console.error('Error diagnosing storage access:', error);
       setBucketError('Failed to diagnose storage access');
+      setLoading(false);
     }
   };
 
@@ -119,26 +240,81 @@ export default function FilesPage() {
   const loadFiles = async () => {
     try {
       setLoading(true);
-      console.log('Loading files from bucket:', bucketName);
+      console.log('Loading files from bucket:', bucketName, 'path:', currentPath);
       
-      const { data, error } = await supabaseClient.storage.from(bucketName).list();
+      // Get files from Supabase storage
+      const { data: fileData, error } = await supabaseClient.storage
+        .from(bucketName)
+        .list(currentPath, {
+          sortBy: { column: 'name', order: 'asc' },
+        });
       
       if (error) {
         console.error('Error loading files:', error.message);
         toast({
-          title: 'Error Loading Files',
-          description: error.message,
+          title: 'Error',
+          description: `Failed to load files: ${error.message}`,
           variant: 'destructive',
         });
+        setFiles([]);
         setLoading(false);
         return;
       }
       
-      if (data) {
-        console.log('Files loaded successfully:', data.length);
-        setFiles(data);
+      if (fileData) {
+        console.log('===== RAW SUPABASE DATA =====');
+        console.log(JSON.stringify(fileData, null, 2));
+        console.log('Raw files data:', fileData);
+        
+        // Process files to identify folders and regular files
+        const processedFiles: ExtendedFileItem[] = fileData.map((item: any): ExtendedFileItem => {
+          // If it's an entry with null metadata or a .folder file, treat it as a folder
+          // In Supabase, folders appear as entries with null metadata
+          const isFolder = item.metadata === null || 
+                          item.name.endsWith('.folder') || 
+                          item.metadata?.mimetype === 'application/x-directory';
+          
+          if (isFolder) {
+            // For folders, clean up the name if it has .folder extension
+            const displayName = item.name.endsWith('.folder') 
+              ? item.name.replace('.folder', '') 
+              : item.name;
+              
+            const folderPath = currentPath 
+              ? `${currentPath}${currentPath.endsWith('/') ? '' : '/'}${displayName}/` 
+              : `${displayName}/`;
+            
+            return {
+              id: `folder-${folderPath}`,
+              name: displayName,
+              path: folderPath,
+              type: 'folder' as const,
+              size: 0,
+              updated: item.updated_at || item.created_at,
+              created_at: item.created_at
+            };
+          }
+          
+          // Otherwise, it's a regular file
+          const filePath = currentPath 
+            ? `${currentPath}${currentPath.endsWith('/') ? '' : '/'}${item.name}` 
+            : item.name;
+          
+          return {
+            id: `file-${filePath}`,
+            name: item.name,
+            path: filePath,
+            type: 'file' as const,
+            size: item.metadata?.size || 0,
+            updated: item.updated_at || item.created_at,
+            metadata: item.metadata,
+            created_at: item.created_at
+          };
+        });
+        
+        console.log('Processed files:', processedFiles);
+        setFiles(processedFiles);
       } else {
-        console.log('No files found or access denied');
         setFiles([]);
       }
       
@@ -159,10 +335,15 @@ export default function FilesPage() {
     try {
       console.log('Downloading file:', fileName);
       
+      // Get file URL - use full path if it looks like one, otherwise construct from current path
+      const filePath = fileName.includes('/') 
+        ? fileName 
+        : `${currentPath}${currentPath.endsWith('/') || !currentPath ? '' : '/'}${fileName}`;
+      
       // Get file URL
       const { data, error } = await supabaseClient.storage
         .from(bucketName)
-        .createSignedUrl(fileName, 60); // URL valid for 60 seconds
+        .createSignedUrl(filePath, 60); // URL valid for 60 seconds
       
       if (error) {
         console.error('Error generating download URL:', error.message);
@@ -227,10 +408,15 @@ export default function FilesPage() {
     try {
       console.log('Previewing file:', fileName);
       
+      // Get file URL - use full path if it looks like one, otherwise construct from current path
+      const filePath = fileName.includes('/') 
+        ? fileName 
+        : `${currentPath}${currentPath.endsWith('/') || !currentPath ? '' : '/'}${fileName}`;
+      
       // Get file URL
       const { data, error } = await supabaseClient.storage
         .from(bucketName)
-        .createSignedUrl(fileName, 3600); // URL valid for 1 hour
+        .createSignedUrl(filePath, 3600); // URL valid for 1 hour
       
       if (error) {
         console.error('Error generating preview URL:', error.message);
@@ -244,7 +430,7 @@ export default function FilesPage() {
       
       if (data?.signedUrl) {
         setPreviewFile({
-          name: fileName,
+          name: fileName.split('/').pop() || fileName,
           url: data.signedUrl
         });
         setIsPreviewOpen(true);
@@ -259,13 +445,565 @@ export default function FilesPage() {
     }
   };
 
+  // Handle file deletion
+  const handleDeleteClick = (filePath: string, isFolder: boolean = false) => {
+    // Construct the full path for the file in the bucket
+    setFileToDelete({path: filePath, isFolder});
+    setIsDeleteDialogOpen(true);
+  };
+  
+  const handleDeleteConfirm = async () => {
+    if (!fileToDelete) return;
+    
+    try {
+      setIsDeleting(true);
+      
+      if (fileToDelete.isFolder) {
+        // For folders, we need to delete all files inside first
+        console.log('Deleting folder:', fileToDelete.path);
+        
+        // List all files in the folder
+        const { data: folderContents, error: listError } = await supabaseClient.storage
+          .from(bucketName)
+          .list(fileToDelete.path, {
+            sortBy: { column: 'name', order: 'asc' },
+          });
+        
+        if (listError) {
+          throw listError;
+        }
+        
+        // Delete all files in the folder
+        if (folderContents && folderContents.length > 0) {
+          const filesToDelete = folderContents.map(item => 
+            `${fileToDelete.path}${fileToDelete.path.endsWith('/') ? '' : '/'}${item.name}`
+          );
+          
+          // Delete files in batches of 10
+          while (filesToDelete.length > 0) {
+            const batch = filesToDelete.splice(0, 10);
+            const { error: deleteError } = await supabaseClient.storage
+              .from(bucketName)
+              .remove(batch);
+            
+            if (deleteError) {
+              console.error('Error deleting folder contents:', deleteError);
+            }
+          }
+        }
+        
+        // Finally, delete the folder marker file if it exists
+        const folderMarkerPath = `${fileToDelete.path}${fileToDelete.path.endsWith('/') ? '' : '/'}`;
+        const { error: markerError } = await supabaseClient.storage
+          .from(bucketName)
+          .remove([`${folderMarkerPath}.folder`]);
+        
+        if (markerError) {
+          console.log('No marker file found or error deleting marker:', markerError);
+        }
+      } else {
+        // For regular files, just delete them
+        await deleteFile(fileToDelete.path);
+      }
+      
+      toast({
+        title: fileToDelete.isFolder ? 'Folder Deleted' : 'File Deleted',
+        description: `${fileToDelete.path.split('/').pop()} has been deleted.`,
+      });
+      
+      // Refresh file list after a small delay to allow Supabase to process the deletion
+      setTimeout(() => {
+        loadFiles();
+      }, 500);
+    } catch (error) {
+      console.error('Error deleting:', error);
+      toast({
+        title: 'Delete Failed',
+        description: error instanceof Error ? error.message : 'Failed to delete',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsDeleting(false);
+      setIsDeleteDialogOpen(false);
+      setFileToDelete(null);
+    }
+  };
+  
+  const handleDeleteCancel = () => {
+    setIsDeleteDialogOpen(false);
+    setFileToDelete(null);
+  };
+
+  // Navigate to a folder
+  const navigateToFolder = (path: string) => {
+    setCurrentPath(path);
+  };
+
+  // Handle creating a new folder
+  const handleCreateFolder = async () => {
+    if (!newFolderName.trim()) {
+      toast({
+        title: 'Error',
+        description: 'Please enter a folder name',
+        variant: 'destructive',
+      });
+      return;
+    }
+    
+    try {
+      setIsCreatingFolder(true);
+      const folderName = newFolderName.trim();
+      
+      // Create a .folder file as a marker for the folder
+      const folderPath = currentPath 
+        ? `${currentPath}${currentPath.endsWith('/') ? '' : '/'}${folderName}` 
+        : folderName;
+      
+      console.log('===== CREATING FOLDER =====');
+      console.log('Folder name:', folderName);
+      console.log('Current path:', currentPath);
+      console.log('Full folder path to create:', `${folderPath}/.folder`);
+      
+      // Create an empty .folder file in the path
+      const { error } = await supabaseClient.storage
+        .from(bucketName)
+        .upload(`${folderPath}/.folder`, new File([], `${folderName}.folder`));
+      
+      if (error) {
+        throw error;
+      }
+      
+      toast({
+        title: 'Folder Created',
+        description: `${folderName} has been created successfully.`,
+      });
+      
+      // Reset state and refresh
+      setNewFolderName('');
+      setIsNewFolderDialogOpen(false);
+      await loadFiles();
+    } catch (error) {
+      console.error('Error creating folder:', error);
+      toast({
+        title: 'Failed to Create Folder',
+        description: error instanceof Error ? error.message : 'An error occurred',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsCreatingFolder(false);
+    }
+  };
+
+  // Add a check for the musical_director role
+  const checkUserRole = async () => {
+    try {
+      const { data, error } = await supabaseClient.auth.getUser();
+      if (error) {
+        console.error('Error getting user:', error);
+        return;
+      }
+      
+      if (data && data.user) {
+        const role = data.user.user_metadata?.role || 
+                     data.user.app_metadata?.role || 
+                     null;
+        setUserRole(role);
+        console.log('[DEBUG-Auth] User role:', role);
+      }
+    } catch (error) {
+      console.error('Error checking user role:', error);
+    }
+  };
+
+  // Move a file
+  const moveFile = async (file: ExtendedFileItem, targetPath: string) => {
+    if (file.type !== 'file') {
+      toast({
+        title: 'Operation Not Supported',
+        description: 'Only files can be moved. Folder moving is not supported yet.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    
+    try {
+      setIsMovingFile(true);
+      
+      // Construct source and target paths
+      const sourcePath = file.path;
+      let filename = file.name;
+      const targetFilePath = targetPath 
+        ? `${targetPath}${targetPath.endsWith('/') ? '' : '/'}${filename}` 
+        : filename;
+      
+      console.log('Moving file from:', sourcePath, 'to:', targetFilePath);
+      
+      // Check if file with same name exists at target
+      const { data: existingFiles, error: listError } = await supabaseClient.storage
+        .from(bucketName)
+        .list(targetPath, {
+          limit: 100,
+        });
+      
+      if (listError) {
+        throw listError;
+      }
+      
+      // If file with same name exists, add timestamp to filename
+      if (existingFiles?.some(f => f.name === filename)) {
+        const timestamp = new Date().getTime();
+        const fileExt = filename.includes('.') ? `.${filename.split('.').pop()}` : '';
+        const baseName = filename.includes('.') ? filename.substring(0, filename.lastIndexOf('.')) : filename;
+        filename = `${baseName}_${timestamp}${fileExt}`;
+        
+        console.log('File with same name exists. New filename:', filename);
+      }
+      
+      // Download the file from source
+      const { data: fileData, error: downloadError } = await supabaseClient.storage
+        .from(bucketName)
+        .download(sourcePath);
+      
+      if (downloadError) {
+        throw downloadError;
+      }
+      
+      if (!fileData) {
+        throw new Error('File data is null');
+      }
+      
+      // Upload to target
+      const { error: uploadError } = await supabaseClient.storage
+        .from(bucketName)
+        .upload(targetFilePath, fileData, {
+          cacheControl: '3600',
+          upsert: false
+        });
+      
+      if (uploadError) {
+        throw uploadError;
+      }
+      
+      // Delete from source
+      const { error: deleteError } = await supabaseClient.storage
+        .from(bucketName)
+        .remove([sourcePath]);
+      
+      if (deleteError) {
+        throw deleteError;
+      }
+      
+      toast({
+        title: 'File Moved',
+        description: `${file.name} has been moved successfully.`,
+      });
+      
+      // Refresh file list
+      await loadFiles();
+    } catch (error) {
+      console.error('Error moving file:', error);
+      toast({
+        title: 'Move Failed',
+        description: error instanceof Error ? error.message : 'Failed to move file',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsMovingFile(false);
+      setDraggedFile(null);
+      setDraggedOver(null);
+    }
+  };
+
+  // Handle context menu for file actions
+  const handleContextMenu = (e: React.MouseEvent, file: ExtendedFileItem) => {
+    e.preventDefault();
+    setContextMenuPosition({ x: e.clientX, y: e.clientY });
+    setContextMenuFile(file);
+  };
+  
+  // Handle long press for touch devices
+  const handleTouchStart = (file: ExtendedFileItem) => {
+    longPressTimer.current = setTimeout(() => {
+      // Calculate position (center of the element)
+      const element = document.getElementById(`file-item-${file.id}`);
+      if (element) {
+        const rect = element.getBoundingClientRect();
+        const x = rect.left + rect.width / 2;
+        const y = rect.top + rect.height / 2;
+        setContextMenuPosition({ x, y });
+        setContextMenuFile(file);
+        
+        // Provide haptic feedback if available
+        if (navigator.vibrate) {
+          navigator.vibrate(50);
+        }
+      }
+    }, longPressDuration);
+  };
+  
+  const handleTouchEnd = () => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+  };
+  
+  // Close context menu
+  const closeContextMenu = () => {
+    setContextMenuFile(null);
+    setContextMenuPosition(null);
+  };
+
+  // Get all available folders for the move dialog
+  const loadAllFolders = async () => {
+    try {
+      setLoading(true);
+      
+      // Get files and folders from root directory first
+      const { data: rootItems, error: rootError } = await supabaseClient.storage
+        .from(bucketName)
+        .list('', {
+          sortBy: { column: 'name', order: 'asc' },
+        });
+      
+      if (rootError) {
+        throw rootError;
+      }
+      
+      // Process folders
+      let folders: ExtendedFileItem[] = [];
+      
+      // Add root directory option
+      folders.push({
+        id: 'folder-root',
+        name: 'Root Directory',
+        path: '',
+        type: 'folder' as const,
+        size: 0,
+        updated: new Date().toISOString(),
+      });
+      
+      // Add folders from root directory
+      if (rootItems) {
+        const rootFolders = rootItems.filter(item => 
+          item.metadata === null || 
+          item.name.endsWith('.folder') ||
+          item.metadata?.mimetype === 'application/x-directory'
+        );
+        
+        for (const folder of rootFolders) {
+          const displayName = folder.name.endsWith('.folder') 
+            ? folder.name.replace('.folder', '') 
+            : folder.name;
+          
+          folders.push({
+            id: `folder-${displayName}/`,
+            name: displayName,
+            path: `${displayName}/`,
+            type: 'folder' as const,
+            size: 0,
+            updated: folder.updated_at || folder.created_at,
+            created_at: folder.created_at
+          });
+          
+          // Todo: For a more complete solution, we could recursively load subfolders here
+        }
+      }
+      
+      setAvailableFolders(folders);
+      setLoading(false);
+    } catch (error) {
+      console.error('Error loading folders:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to load folders. Please try again.',
+        variant: 'destructive',
+      });
+      setLoading(false);
+    }
+  };
+
+  // Handle opening the move dialog
+  const handleMoveClick = (file: ExtendedFileItem) => {
+    if (file.type !== 'file') {
+      toast({
+        title: 'Operation Not Supported',
+        description: 'Only files can be moved. Folder moving is not supported yet.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    
+    setFileToMove(file);
+    loadAllFolders();
+    setIsMoveDialogOpen(true);
+  };
+
+  // Handle move to selected folder
+  const handleMoveToFolder = async (targetPath: string) => {
+    if (!fileToMove) return;
+    
+    try {
+      setIsMovingFile(true);
+      setIsMoveDialogOpen(false);
+      
+      await moveFile(fileToMove, targetPath);
+      
+      // Cleanup
+      setFileToMove(null);
+    } catch (error) {
+      console.error('Error moving file:', error);
+      toast({
+        title: 'Move Failed',
+        description: error instanceof Error ? error.message : 'Failed to move file',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsMovingFile(false);
+    }
+  };
+
+  // Check if file is audio
+  const isAudioFile = (fileName: string) => {
+    const lowerName = fileName.toLowerCase();
+    return fileTypes.audio.some(ext => lowerName.endsWith(ext));
+  };
+
+  // Play an audio file
+  const handlePlayAudio = async (fileName: string) => {
+    try {
+      console.log('Playing audio file:', fileName);
+      
+      // Get file URL - use full path if it looks like one, otherwise construct from current path
+      const filePath = fileName.includes('/') 
+        ? fileName 
+        : `${currentPath}${currentPath.endsWith('/') || !currentPath ? '' : '/'}${fileName}`;
+      
+      // Get file URL
+      const { data, error } = await supabaseClient.storage
+        .from(bucketName)
+        .createSignedUrl(filePath, 3600); // URL valid for 1 hour
+      
+      if (error) {
+        console.error('Error generating audio URL:', error.message);
+        toast({
+          title: 'Audio Error',
+          description: error.message,
+          variant: 'destructive',
+        });
+        return;
+      }
+      
+      if (data?.signedUrl) {
+        setAudioFile({
+          name: fileName.split('/').pop() || fileName,
+          url: data.signedUrl
+        });
+        setIsAudioPlayerOpen(true);
+        setIsPlaying(true);
+        
+        // Start playback when dialog opens (handled by useEffect)
+      }
+    } catch (error) {
+      console.error('Audio playback error:', error);
+      toast({
+        title: 'Playback Failed',
+        description: 'Unable to play the audio file. Please try again.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  // Control audio playback
+  const togglePlayPause = () => {
+    if (audioRef.current) {
+      if (isPlaying) {
+        audioRef.current.pause();
+      } else {
+        audioRef.current.play();
+      }
+      setIsPlaying(!isPlaying);
+    }
+  };
+
+  // Toggle mute
+  const toggleMute = () => {
+    if (audioRef.current) {
+      audioRef.current.muted = !audioRef.current.muted;
+      setIsMuted(!isMuted);
+    }
+  };
+
+  // Handle audio ended event
+  const handleAudioEnded = () => {
+    setIsPlaying(false);
+  };
+
+  // Format time in MM:SS format
+  const formatTime = (seconds: number) => {
+    if (isNaN(seconds)) return "0:00";
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  // Handle seeking when user interacts with the slider
+  const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (audioRef.current) {
+      const seekTime = Number(e.target.value);
+      audioRef.current.currentTime = seekTime;
+      setCurrentTime(seekTime);
+    }
+  };
+
+  // Update the current time as the audio plays
+  const handleTimeUpdate = () => {
+    if (audioRef.current) {
+      setCurrentTime(audioRef.current.currentTime);
+    }
+  };
+
+  // Get duration when audio metadata is loaded
+  const handleLoadedMetadata = () => {
+    if (audioRef.current) {
+      setDuration(audioRef.current.duration);
+    }
+  };
+
+  // Effect to handle audio playback when dialog opens
+  useEffect(() => {
+    if (isAudioPlayerOpen && audioRef.current && isPlaying) {
+      // Small delay to ensure the audio element is ready
+      const playPromise = audioRef.current.play();
+      
+      if (playPromise !== undefined) {
+        playPromise.catch(error => {
+          console.error('Error playing audio:', error);
+          setIsPlaying(false);
+        });
+      }
+    }
+  }, [isAudioPlayerOpen, audioFile]);
+
+  // Reset audio state when dialog closes
+  const handleAudioDialogClose = () => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+    }
+    setIsPlaying(false);
+    setIsAudioPlayerOpen(false);
+  };
+
   return (
     <div className="container mx-auto py-8">
+      {/* Add the CSS styles */}
+      <style dangerouslySetInnerHTML={{ __html: dragDropStyles }} />
+      
       <Tabs defaultValue="files" className="space-y-6">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <TabsList className="mb-0">
             <TabsTrigger value="files">Files</TabsTrigger>
-            <TabsTrigger value="upload">Upload</TabsTrigger>
+            <TabsTrigger value="upload" ref={uploadButtonRef}>Upload</TabsTrigger>
             <TabsTrigger value="settings">Settings</TabsTrigger>
           </TabsList>
           
@@ -293,7 +1031,7 @@ export default function FilesPage() {
           <Card>
             <CardHeader className="pb-3">
               <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                <CardTitle className="text-2xl">Music Files</CardTitle>
+                <CardTitle className="text-2xl">Files</CardTitle>
                 <div className="flex items-center gap-2">
                   <div className="relative w-full md:w-64">
                     <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -304,6 +1042,16 @@ export default function FilesPage() {
                       onChange={e => setSearchQuery(e.target.value)}
                     />
                   </div>
+                  
+                  <Button 
+                    variant="outline" 
+                    onClick={() => setIsNewFolderDialogOpen(true)}
+                    title="Create new folder"
+                    className="gap-1"
+                  >
+                    <FolderPlus className="h-4 w-4 mr-1" />
+                    New Folder
+                  </Button>
                   
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
@@ -393,6 +1141,52 @@ export default function FilesPage() {
             </CardHeader>
             
             <CardContent>
+              {/* Breadcrumb Navigation */}
+              <div className="flex items-center flex-wrap mb-4 text-sm">
+                {breadcrumbs.map((crumb, index) => (
+                  <React.Fragment key={crumb.path}>
+                    {index > 0 && <ChevronRight className="h-4 w-4 mx-1 text-muted-foreground" />}
+                    <Button
+                      variant="link"
+                      className={`p-0 h-auto ${index === breadcrumbs.length - 1 ? 'font-medium text-primary' : 'text-muted-foreground'}`}
+                      onClick={() => navigateToFolder(crumb.path)}
+                    >
+                      {index === 0 ? (
+                        <Home className="h-4 w-4 mr-1" />
+                      ) : null}
+                      {crumb.name}
+                    </Button>
+                  </React.Fragment>
+                ))}
+              </div>
+              
+              {/* File Drop Zone - visible when dragging a file */}
+              {draggedFile && currentPath !== '' && (
+                <div 
+                  className={`mb-4 border-2 ${isFolderDragOver ? 'border-blue-500 bg-blue-50' : 'border-dashed border-gray-300'} rounded-md p-6 transition-colors text-center drop-target`}
+                  data-target-path=""
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setIsFolderDragOver(true);
+                  }}
+                  onDragLeave={() => {
+                    setIsFolderDragOver(false);
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    if (draggedFile) {
+                      moveFile(draggedFile, '');
+                    }
+                    setIsFolderDragOver(false);
+                  }}
+                >
+                  <div className="flex flex-col items-center justify-center py-4">
+                    <Folder className={`h-16 w-16 mb-2 ${isFolderDragOver ? 'text-blue-600 animate-pulse' : 'text-gray-400'}`} />
+                    <p className="text-sm font-medium">Drop here to move to root directory</p>
+                  </div>
+                </div>
+              )}
+              
               {loading ? (
                 <div className="flex flex-col items-center justify-center py-12">
                   <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary mb-4"></div>
@@ -425,7 +1219,7 @@ export default function FilesPage() {
                       <p className="text-muted-foreground mt-1 max-w-md">
                         {searchQuery || filterType 
                           ? "No files match your current filters. Try adjusting your search criteria."
-                          : "Upload some music files to see them here."}
+                          : "Upload some files or create a folder to get started."}
                       </p>
                       {(searchQuery || filterType) && (
                         <Button
@@ -439,47 +1233,167 @@ export default function FilesPage() {
                           Clear Filters
                         </Button>
                       )}
+                      
+                      {!searchQuery && !filterType && (
+                        <div className="mt-6 flex items-center gap-4">
+                          <Button 
+                            variant="outline" 
+                            onClick={() => setIsNewFolderDialogOpen(true)}
+                            className="flex items-center gap-2"
+                          >
+                            <FolderPlus className="h-4 w-4" />
+                            Create Folder
+                          </Button>
+                          
+                          <Button 
+                            variant="default"
+                            onClick={() => uploadButtonRef.current?.click()}
+                            className="flex items-center gap-2"
+                          >
+                            <UploadIcon className="h-4 w-4" />
+                            Upload Files
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   ) : (
                     view === 'grid' ? (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4"
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                        }}
+                      >
                         {filteredFiles.map((file, index) => (
                           <div 
-                            key={file.id || `file-${index}-${file.name}`} 
-                            className="border border-border rounded-lg overflow-hidden transition-all hover:shadow-md hover:border-primary/40 flex flex-col"
+                            key={file.id || `file-${index}-${file.name}`}
+                            id={`file-item-${file.id}`}
+                            className={`border rounded-lg overflow-hidden transition-all hover:shadow-md flex flex-col
+                              ${file.type === 'folder' 
+                                ? 'hover:border-blue-400 hover:bg-blue-50/50' 
+                                : 'hover:border-primary/40'}
+                              ${draggedOver === file.path ? 'ring-2 ring-blue-500 bg-blue-50' : ''}
+                              ${draggedFile?.id === file.id ? 'opacity-50' : ''}`}
+                            data-file-id={file.id}
+                            data-file-type={file.type}
+                            data-file-path={file.path}
+                            data-is-folder={file.type === 'folder' ? 'true' : 'false'}
+                            onContextMenu={(e) => handleContextMenu(e, file)}
+                            onTouchStart={() => handleTouchStart(file)}
+                            onTouchEnd={handleTouchEnd}
                           >
-                            <div className="p-4 flex items-center justify-center bg-muted/30 border-b h-32">
-                              {getFileIcon(file.name)}
+                            <div 
+                              className={`p-4 flex items-center justify-center border-b h-32
+                                ${file.type === 'folder' ? 'bg-blue-50 cursor-pointer folder-item' : 'bg-muted/30'}
+                                ${draggedOver === file.path ? 'drag-over' : ''}`}
+                              onClick={() => file.type === 'folder' ? navigateToFolder(file.path) : null}
+                              data-folder-path={file.type === 'folder' ? file.path : undefined}
+                              onDragOver={(e) => {
+                                // Only allow drops on folders
+                                if (file.type === 'folder' && draggedFile && draggedFile.id !== file.id) {
+                                  e.preventDefault();
+                                  setDraggedOver(file.path);
+                                  // Add highlighted class
+                                  e.currentTarget.classList.add('drag-over');
+                                }
+                              }}
+                              onDragLeave={(e) => {
+                                // Remove highlighted class
+                                e.currentTarget.classList.remove('drag-over');
+                                setDraggedOver(null);
+                              }}
+                              onDrop={(e) => {
+                                e.preventDefault();
+                                e.currentTarget.classList.remove('drag-over');
+                                
+                                if (file.type === 'folder' && draggedFile && draggedFile.id !== file.id) {
+                                  console.log('Drop event on folder:', file.name);
+                                  moveFile(draggedFile, file.path);
+                                }
+                              }}
+                            >
+                              {file.type === 'folder' ? 
+                                <Folder className={`h-16 w-16 ${draggedOver === file.path ? 'text-blue-600 animate-pulse' : 'text-blue-500'}`} /> : 
+                                getFileIcon(file.name)
+                              }
                             </div>
-                            <div className="p-3 flex-1">
-                              <h3 className="font-medium text-sm break-all line-clamp-2">{file.name}</h3>
+                            <div 
+                              className="p-3 flex-1"
+                              onClick={() => file.type === 'folder' ? navigateToFolder(file.path) : null}
+                              style={{ cursor: file.type === 'folder' ? 'pointer' : 'default' }}
+                              draggable={file.type === 'file'}
+                              onDragStart={(e) => {
+                                if (file.type === 'file') {
+                                  console.log('Started dragging file:', file.name);
+                                  
+                                  // Set drag data
+                                  e.dataTransfer.setData('application/json', JSON.stringify({
+                                    id: file.id,
+                                    name: file.name,
+                                    path: file.path,
+                                    type: file.type
+                                  }));
+                                  
+                                  // Set a ghost drag image
+                                  try {
+                                    const ghostImg = new Image();
+                                    ghostImg.src = 'data:image/svg+xml;base64,' + btoa(`<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 24 24" fill="none" stroke="#000000" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>`);
+                                    e.dataTransfer.setDragImage(ghostImg, 25, 25);
+                                  } catch (err) {
+                                    console.log('Could not set drag image:', err);
+                                  }
+                                  
+                                  // Update state
+                                  setDraggedFile(file);
+                                  
+                                  // Highlight all folder items
+                                  document.querySelectorAll('.folder-item').forEach(el => {
+                                    el.classList.add('potential-drop-target');
+                                  });
+                                  
+                                  // Add class to root drop zone if exists
+                                  const dropZone = document.querySelector('.drop-target');
+                                  if (dropZone) dropZone.classList.add('potential-drop-target');
+                                }
+                              }}
+                              onDragEnd={() => {
+                                console.log('Ended dragging file');
+                                
+                                // Remove highlighting
+                                document.querySelectorAll('.potential-drop-target').forEach(el => {
+                                  el.classList.remove('potential-drop-target');
+                                });
+                                
+                                document.querySelectorAll('.drag-over').forEach(el => {
+                                  el.classList.remove('drag-over');
+                                });
+                                
+                                setTimeout(() => {
+                                  setDraggedFile(null);
+                                  setDraggedOver(null);
+                                }, 100);
+                              }}
+                            >
+                              <h3 className={`font-medium text-sm break-all line-clamp-2
+                                ${file.type === 'folder' ? 'text-blue-700' : ''}`}>
+                                {file.name}
+                              </h3>
                               <div className="flex justify-between items-center mt-2 text-xs text-muted-foreground">
-                                <span>{formatFileSize(file.metadata?.size)}</span>
+                                <span>{file.type === 'folder' ? 'Folder' : formatFileSize(file.size)}</span>
                                 <span>{formatDate(file.created_at)}</span>
                               </div>
                             </div>
-                            <div className="p-2 bg-muted/20 border-t flex justify-between">
+                            
+                            {/* Simplify the action buttons - only keep delete button */}
+                            <div className="p-2 bg-muted/20 border-t flex justify-center">
                               <Button 
                                 variant="ghost" 
                                 size="sm"
-                                onClick={() => handleDownload(file.name)}
-                                className="flex-1 justify-center"
+                                onClick={() => handleDeleteClick(file.path, file.type === 'folder')}
+                                className="flex-1 justify-center text-red-500 hover:text-red-700 hover:bg-red-100/20"
                               >
-                                <DownloadIcon className="h-4 w-4 mr-2" />
-                                Download
+                                <Trash2 className="h-4 w-4 mr-2" />
+                                Delete
                               </Button>
-                              
-                              {isPreviewable(file.name) && (
-                                <Button 
-                                  variant="ghost" 
-                                  size="sm"
-                                  onClick={() => handlePreview(file.name)}
-                                  className="flex-1 justify-center"
-                                >
-                                  <Eye className="h-4 w-4 mr-2" />
-                                  Preview
-                                </Button>
-                              )}
                             </div>
                           </div>
                         ))}
@@ -489,7 +1403,8 @@ export default function FilesPage() {
                         <table className="min-w-full divide-y divide-border">
                           <thead className="bg-muted/50">
                             <tr>
-                              <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">File</th>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Name</th>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Type</th>
                               <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Size</th>
                               <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Date</th>
                               <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">Actions</th>
@@ -497,44 +1412,55 @@ export default function FilesPage() {
                           </thead>
                           <tbody className="bg-card divide-y divide-border">
                             {filteredFiles.map((file, index) => (
-                              <tr key={file.id || `file-${index}-${file.name}`} className="hover:bg-muted/30 transition-colors">
+                              <tr 
+                                key={file.id || `file-${index}-${file.name}`} 
+                                className={`transition-colors hover:bg-muted/30 ${file.type === 'folder' ? 'hover:bg-blue-50/50' : ''}`}
+                                onContextMenu={(e) => handleContextMenu(e, file)}
+                                onTouchStart={() => handleTouchStart(file)}
+                                onTouchEnd={handleTouchEnd}
+                                id={`file-item-${file.id}`}
+                              >
                                 <td className="px-4 py-3 whitespace-nowrap">
-                                  <div className="flex items-center">
+                                  <div 
+                                    className="flex items-center cursor-pointer"
+                                    onClick={() => file.type === 'folder' ? navigateToFolder(file.path) : null}
+                                  >
                                     <div className="flex-shrink-0 h-8 w-8 mr-3">
-                                      {getFileIcon(file.name)}
+                                      {file.type === 'folder' ? 
+                                        <Folder className="h-8 w-8 text-blue-500" /> : 
+                                        getFileIcon(file.name)
+                                      }
                                     </div>
                                     <div className="truncate max-w-[240px]">
-                                      <div className="text-sm font-medium">{file.name}</div>
+                                      <div className={`text-sm font-medium ${file.type === 'folder' ? 'text-blue-700' : ''}`}>
+                                        {file.name}
+                                      </div>
                                     </div>
                                   </div>
                                 </td>
                                 <td className="px-4 py-3 whitespace-nowrap text-sm">
-                                  {formatFileSize(file.metadata?.size)}
+                                  {file.type === 'folder' ? 
+                                    <span className="px-2 py-1 rounded-full bg-blue-100 text-blue-800 text-xs">Folder</span> : 
+                                    <span className="px-2 py-1 rounded-full bg-gray-100 text-gray-800 text-xs">File</span>
+                                  }
+                                </td>
+                                <td className="px-4 py-3 whitespace-nowrap text-sm">
+                                  {file.type === 'folder' ? '--' : formatFileSize(file.size)}
                                 </td>
                                 <td className="px-4 py-3 whitespace-nowrap text-sm">
                                   {formatDate(file.created_at)}
                                 </td>
                                 <td className="px-4 py-3 whitespace-nowrap text-right">
-                                  <div className="flex justify-end space-x-2">
+                                  <div className="flex justify-end">
                                     <Button
                                       variant="ghost"
                                       size="sm"
-                                      onClick={() => handleDownload(file.name)}
+                                      onClick={() => handleDeleteClick(file.path, file.type === 'folder')}
+                                      className="text-red-500 hover:text-red-700 hover:bg-red-100/20"
                                     >
-                                      <DownloadIcon className="h-4 w-4 mr-2" />
-                                      Download
+                                      <Trash2 className="h-4 w-4 mr-1" />
+                                      Delete
                                     </Button>
-                                    
-                                    {isPreviewable(file.name) && (
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={() => handlePreview(file.name)}
-                                      >
-                                        <Eye className="h-4 w-4 mr-2" />
-                                        Preview
-                                      </Button>
-                                    )}
                                   </div>
                                 </td>
                               </tr>
@@ -561,7 +1487,9 @@ export default function FilesPage() {
             <CardHeader>
               <CardTitle>Upload Music Files</CardTitle>
               <CardDescription>
-                Upload music files and documents to share with your team.
+                {currentPath 
+                  ? `Upload files to ${currentPath}`
+                  : 'Upload music files and documents to share with your team.'}
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -569,6 +1497,7 @@ export default function FilesPage() {
                 bucketName={bucketName}
                 onUploadComplete={loadFiles}
                 allowedFileTypes={[...fileTypes.audio, ...fileTypes.document]}
+                currentPath={currentPath}
               />
             </CardContent>
           </Card>
@@ -741,6 +1670,343 @@ export default function FilesPage() {
           </div>
         </DialogContent>
       </Dialog>
+      
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {fileToDelete?.isFolder ? 'Delete Folder' : 'Delete File'}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {fileToDelete?.isFolder ? 
+                `Are you sure you want to delete the folder "${fileToDelete.path.split('/').pop()}" and all its contents? This action cannot be undone.` :
+                `Are you sure you want to delete "${fileToDelete?.path.split('/').pop()}"? This action cannot be undone.`
+              }
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={handleDeleteCancel} disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleDeleteConfirm} 
+              className="bg-red-500 hover:bg-red-600"
+              disabled={isDeleting}
+            >
+              {isDeleting ? (
+                <>
+                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  {fileToDelete?.isFolder ? 'Delete Folder' : 'Delete File'}
+                </>
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      
+      {/* New Folder Dialog */}
+      <Dialog open={isNewFolderDialogOpen} onOpenChange={setIsNewFolderDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Create New Folder</DialogTitle>
+            <DialogDescription>
+              {currentPath 
+                ? `Create a new folder inside ${currentPath}`
+                : 'Create a new folder in the root directory'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="space-y-2">
+              <label htmlFor="folder-name" className="text-sm font-medium">
+                Folder Name
+              </label>
+              <Input
+                id="folder-name"
+                placeholder="Enter folder name..."
+                value={newFolderName}
+                onChange={(e) => setNewFolderName(e.target.value)}
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !isCreatingFolder && newFolderName.trim()) {
+                    handleCreateFolder();
+                  }
+                }}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setIsNewFolderDialogOpen(false)}
+              disabled={isCreatingFolder}
+            >
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleCreateFolder}
+              disabled={!newFolderName.trim() || isCreatingFolder}
+              className="relative"
+            >
+              {isCreatingFolder ? (
+                <>
+                  <div className="absolute inset-0 flex items-center justify-center bg-primary">
+                    <RefreshCw className="h-4 w-4 animate-spin" />
+                  </div>
+                  <span className="opacity-0">Create Folder</span>
+                </>
+              ) : (
+                <>
+                  <FolderPlus className="h-4 w-4 mr-2" />
+                  Create Folder
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
+      {/* File movement loading overlay */}
+      {isMovingFile && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white p-6 rounded-lg shadow-lg flex flex-col items-center max-w-md mx-4">
+            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary mb-4"></div>
+            <h3 className="text-lg font-medium mb-2">Moving File</h3>
+            <p className="text-center text-muted-foreground">
+              Please wait while your file is being moved...
+            </p>
+          </div>
+        </div>
+      )}
+      
+      {/* Global context menu */}
+      {contextMenuFile && (
+        <div 
+          className="fixed inset-0 z-50"
+          onClick={closeContextMenu}
+          style={{ cursor: 'default' }}
+        >
+          <div 
+            className="absolute bg-white rounded-md shadow-lg border overflow-hidden py-1"
+            style={{ 
+              left: `${contextMenuPosition?.x || 0}px`, 
+              top: `${contextMenuPosition?.y || 0}px`,
+              transform: 'translate(-50%, -50%)'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {contextMenuFile.type === 'folder' ? (
+              <button 
+                className="w-full px-4 py-2 text-left text-sm hover:bg-muted flex items-center"
+                onClick={() => {
+                  navigateToFolder(contextMenuFile.path);
+                  closeContextMenu();
+                }}
+              >
+                <Folder className="h-4 w-4 mr-2" />
+                Open Folder
+              </button>
+            ) : (
+              <>
+                {isAudioFile(contextMenuFile.name) && (
+                  <button 
+                    className="w-full px-4 py-2 text-left text-sm hover:bg-muted flex items-center"
+                    onClick={() => {
+                      handlePlayAudio(contextMenuFile.name);
+                      closeContextMenu();
+                    }}
+                  >
+                    <Play className="h-4 w-4 mr-2" />
+                    Play Audio
+                  </button>
+                )}
+
+                <button 
+                  className="w-full px-4 py-2 text-left text-sm hover:bg-muted flex items-center"
+                  onClick={() => {
+                    handleDownload(contextMenuFile.name);
+                    closeContextMenu();
+                  }}
+                >
+                  <DownloadIcon className="h-4 w-4 mr-2" />
+                  Download
+                </button>
+                
+                {isPreviewable(contextMenuFile.name) && (
+                  <button 
+                    className="w-full px-4 py-2 text-left text-sm hover:bg-muted flex items-center"
+                    onClick={() => {
+                      handlePreview(contextMenuFile.name);
+                      closeContextMenu();
+                    }}
+                  >
+                    <Eye className="h-4 w-4 mr-2" />
+                    Preview
+                  </button>
+                )}
+                
+                <button 
+                  className="w-full px-4 py-2 text-left text-sm hover:bg-muted flex items-center"
+                  onClick={() => {
+                    handleMoveClick(contextMenuFile);
+                    closeContextMenu();
+                  }}
+                >
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Move to...
+                </button>
+              </>
+            )}
+            
+            <div className="my-1 border-t"></div>
+            
+            <button 
+              className="w-full px-4 py-2 text-left text-sm hover:bg-red-50 text-red-600 flex items-center"
+              onClick={() => {
+                handleDeleteClick(contextMenuFile.path, contextMenuFile.type === 'folder');
+                closeContextMenu();
+              }}
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Delete {contextMenuFile.type === 'folder' ? 'Folder' : 'File'}
+            </button>
+          </div>
+        </div>
+      )}
+      
+      {/* Move File Dialog */}
+      <Dialog open={isMoveDialogOpen} onOpenChange={setIsMoveDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Move File</DialogTitle>
+            <DialogDescription>
+              Select a destination folder to move "{fileToMove?.name}".
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto">
+            {loading ? (
+              <div className="flex items-center justify-center py-4">
+                <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary"></div>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {availableFolders.length === 0 ? (
+                  <p className="text-muted-foreground text-sm text-center py-4">
+                    No folders available. Create a folder first.
+                  </p>
+                ) : (
+                  availableFolders.map(folder => (
+                    <button
+                      key={folder.id}
+                      className="w-full flex items-center p-3 rounded-md hover:bg-muted text-left transition-colors"
+                      onClick={() => handleMoveToFolder(folder.path)}
+                    >
+                      <Folder className="h-5 w-5 mr-3 text-blue-500" />
+                      <span className="font-medium">{folder.name || 'Root Directory'}</span>
+                    </button>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setIsMoveDialogOpen(false)}
+            >
+              Cancel
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
+      {/* Audio Player Dialog */}
+      <Dialog open={isAudioPlayerOpen} onOpenChange={handleAudioDialogClose}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Audio Player</DialogTitle>
+            <DialogDescription>
+              Playing: {audioFile?.name}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <div className="bg-muted/30 rounded-lg p-4 mb-4 flex items-center justify-center">
+              <Music className="h-24 w-24 text-primary/60" />
+            </div>
+            
+            <audio 
+              ref={audioRef}
+              src={audioFile?.url} 
+              className="hidden" 
+              onEnded={handleAudioEnded}
+              onTimeUpdate={handleTimeUpdate}
+              onLoadedMetadata={handleLoadedMetadata}
+            />
+            
+            <div className="space-y-4">
+              <div className="text-center">
+                <h3 className="font-medium text-lg">{audioFile?.name}</h3>
+              </div>
+              
+              {/* Audio Progress Slider */}
+              <div className="space-y-2">
+                <div className="w-full">
+                  <input
+                    ref={progressBarRef}
+                    type="range"
+                    min="0"
+                    max={duration || 100}
+                    value={currentTime}
+                    onChange={handleSeek}
+                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                  />
+                </div>
+                <div className="flex justify-between text-xs text-muted-foreground">
+                  <span>{formatTime(currentTime)}</span>
+                  <span>{formatTime(duration)}</span>
+                </div>
+              </div>
+              
+              <div className="flex items-center justify-center space-x-4">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={toggleMute}
+                  className="rounded-full"
+                >
+                  {isMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+                </Button>
+                
+                <Button
+                  variant="default"
+                  size="icon"
+                  onClick={togglePlayPause}
+                  className="w-12 h-12 rounded-full"
+                >
+                  {isPlaying ? 
+                    <Pause className="h-6 w-6" /> : 
+                    <Play className="h-6 w-6 ml-1" />
+                  }
+                </Button>
+                
+                <Button
+                  variant="outline"
+                  onClick={() => window.open(audioFile?.url, '_blank')}
+                  className="rounded-full"
+                >
+                  <DownloadIcon className="h-4 w-4 mr-2" />
+                  Download
+                </Button>
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+      
+      <Toaster />
     </div>
   );
 } 

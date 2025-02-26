@@ -1,32 +1,46 @@
 /**
- * Represents a file or folder item
+ * Represents a file or folder item in storage
  */
 export interface FileItem {
   id: string;
   name: string;
-  type: 'folder' | 'file';
-  fileType?: string;
-  path: string;
+  type: 'file' | 'folder';
   size?: number;
-  updated: string;
+  updated?: string;
+  created_at?: string;
+  path: string;
+  metadata?: {
+    size?: number;
+    mimetype?: string;
+    cacheControl?: string;
+    lastModified?: string;
+  };
+}
+
+/**
+ * Represents a breadcrumb navigation item
+ */
+export interface BreadcrumbItem {
+  name: string;
+  path: string;
+}
+
+/**
+ * File upload status
+ */
+export interface FileUploadStatus {
+  file: File;
+  progress: number;
+  status: 'pending' | 'uploading' | 'completed' | 'error';
+  error?: string;
+  path?: string;
   url?: string;
 }
 
 /**
- * Upload status for tracking file uploads
+ * Upload response from Supabase
  */
-export type UploadStatus = {
-  id: string;
-  fileName: string;
-  progress: number;
-  status: 'uploading' | 'success' | 'error';
-  errorMessage?: string;
-};
-
-/**
- * Breadcrumb item for navigation
- */
-export type BreadcrumbItem = {
-  name: string;
+export interface UploadResponse {
   path: string;
-}; 
+  url: string;
+} 

@@ -228,6 +228,21 @@ export async function checkBucketSettings() {
       ? `Authenticated as ${authStatus.user?.email}` 
       : 'Not authenticated (using anon key)');
     
+    // Check for the musical_director role specifically
+    let userRole = null;
+    let hasMusicalDirectorRole = false;
+    
+    if (authStatus.authenticated && authStatus.user) {
+      userRole = authStatus.user.user_metadata?.role || 
+                 authStatus.user.app_metadata?.role || 
+                 null;
+                 
+      hasMusicalDirectorRole = userRole === 'musical_director';
+      
+      console.log('[SUPABASE-DIAG] User role:', userRole);
+      console.log('[SUPABASE-DIAG] Has musical_director role:', hasMusicalDirectorRole);
+    }
+    
     // Check if the key might be a service role key instead of anon key
     let keyType = 'unknown';
     try {
@@ -254,8 +269,22 @@ export async function checkBucketSettings() {
         message: `Error: ${bucketsError.message}`,
         keyType,
         url: supabaseUrl,
-        authStatus
+        authStatus,
+        userRole,
+        hasMusicalDirectorRole
       };
+    }
+    
+    // Test direct access to the production-files bucket
+    const { data: files, error: filesError } = await supabaseClient.storage
+      .from('production-files')
+      .list('', { limit: 1 });
+      
+    const canAccessFiles = !filesError;
+    console.log('[SUPABASE-DIAG] Can access files directly:', canAccessFiles);
+    
+    if (filesError) {
+      console.error('[SUPABASE-DIAG] Files access error:', filesError.message);
     }
     
     return {
@@ -264,7 +293,11 @@ export async function checkBucketSettings() {
       buckets: buckets?.map(b => b.name) || [],
       keyType,
       url: supabaseUrl,
-      authStatus
+      authStatus,
+      userRole,
+      hasMusicalDirectorRole,
+      canAccessFiles,
+      filesError: filesError ? filesError.message : null
     };
   } catch (error) {
     console.error('[SUPABASE-DIAG] Error:', error);
