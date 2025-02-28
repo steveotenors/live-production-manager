@@ -13,35 +13,41 @@ export type Database = {
         Row: {
           created_at: string | null
           department: string
+          file_type: string | null
           id: number
           metadata: Json | null
           name: string
-          project_id: number | null
+          project_id: string | null
           size: number | null
           storage_path: string | null
           type: string
+          version: string | null
         }
         Insert: {
           created_at?: string | null
           department?: string
+          file_type?: string | null
           id?: number
           metadata?: Json | null
           name: string
-          project_id?: number | null
+          project_id?: string | null
           size?: number | null
           storage_path?: string | null
           type: string
+          version?: string | null
         }
         Update: {
           created_at?: string | null
           department?: string
+          file_type?: string | null
           id?: number
           metadata?: Json | null
           name?: string
-          project_id?: number | null
+          project_id?: string | null
           size?: number | null
           storage_path?: string | null
           type?: string
+          version?: string | null
         }
         Relationships: [
           {
@@ -55,25 +61,25 @@ export type Database = {
       }
       folders: {
         Row: {
-          created_at: string
+          created_at: string | null
           id: string
           name: string
           path: string[] | null
-          project_id: number | null
+          project_id: string | null
         }
         Insert: {
-          created_at?: string
+          created_at?: string | null
           id?: string
           name: string
           path?: string[] | null
-          project_id?: number | null
+          project_id?: string | null
         }
         Update: {
-          created_at?: string
+          created_at?: string | null
           id?: string
           name?: string
           path?: string[] | null
-          project_id?: number | null
+          project_id?: string | null
         }
         Relationships: [
           {
@@ -92,7 +98,7 @@ export type Database = {
           department: string
           id: number
           notes: string | null
-          project_id: number | null
+          project_id: string | null
           updated_at: string | null
         }
         Insert: {
@@ -101,7 +107,7 @@ export type Database = {
           department?: string
           id?: number
           notes?: string | null
-          project_id?: number | null
+          project_id?: string | null
           updated_at?: string | null
         }
         Update: {
@@ -110,7 +116,7 @@ export type Database = {
           department?: string
           id?: number
           notes?: string | null
-          project_id?: number | null
+          project_id?: string | null
           updated_at?: string | null
         }
         Relationships: [
@@ -123,66 +129,125 @@ export type Database = {
           },
         ]
       }
+      project_members: {
+        Row: {
+          id: string
+          joined_at: string | null
+          project_id: string | null
+          role: string
+          user_id: string | null
+        }
+        Insert: {
+          id?: string
+          joined_at?: string | null
+          project_id?: string | null
+          role?: string
+          user_id?: string | null
+        }
+        Update: {
+          id?: string
+          joined_at?: string | null
+          project_id?: string | null
+          role?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_members_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       projects: {
         Row: {
           created_at: string | null
-          department: string
-          id: number
-          metadata: Json | null
-          musical_director_id: string | null
+          created_by: string | null
+          description: string | null
+          id: string
           name: string
+          status: string | null
           updated_at: string | null
+          visibility: string | null
         }
         Insert: {
           created_at?: string | null
-          department?: string
-          id?: number
-          metadata?: Json | null
-          musical_director_id?: string | null
+          created_by?: string | null
+          description?: string | null
+          id?: string
           name: string
+          status?: string | null
           updated_at?: string | null
+          visibility?: string | null
         }
         Update: {
           created_at?: string | null
-          department?: string
-          id?: number
-          metadata?: Json | null
-          musical_director_id?: string | null
+          created_by?: string | null
+          description?: string | null
+          id?: string
           name?: string
+          status?: string | null
           updated_at?: string | null
+          visibility?: string | null
+        }
+        Relationships: []
+      }
+      schema_version: {
+        Row: {
+          applied_at: string | null
+          id: number
+          version: string
+        }
+        Insert: {
+          applied_at?: string | null
+          id?: number
+          version: string
+        }
+        Update: {
+          applied_at?: string | null
+          id?: number
+          version?: string
         }
         Relationships: []
       }
       tasks: {
         Row: {
-          created_at: string
-          department: string | null
-          description: string
+          assigned_to: string | null
+          created_at: string | null
+          created_by: string | null
+          description: string | null
           due_date: string | null
           id: string
-          project_id: number | null
+          project_id: string
           status: string | null
-          user_id: string | null
+          title: string
+          updated_at: string | null
         }
         Insert: {
-          created_at?: string
-          department?: string | null
-          description: string
+          assigned_to?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
           due_date?: string | null
           id?: string
-          project_id?: number | null
+          project_id: string
           status?: string | null
-          user_id?: string | null
+          title: string
+          updated_at?: string | null
         }
         Update: {
-          created_at?: string
-          department?: string | null
-          description?: string
+          assigned_to?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
           due_date?: string | null
           id?: string
-          project_id?: number | null
+          project_id?: string
           status?: string | null
-          user_id?: string | null
+          title?: string
+          updated_at?: string | null
         }
         Relationships: [
           {
@@ -192,36 +257,28 @@ export type Database = {
             referencedRelation: "projects"
             referencedColumns: ["id"]
           },
+        ]
+      }
+    }
+    Views: {
+      task_assignments: {
+        Row: {
+          assigned_to: string | null
+          assigned_to_email: string | null
+          project_id: string | null
+          task_id: string | null
+          task_title: string | null
+        }
+        Relationships: [
           {
-            foreignKeyName: "tasks_user_id_fkey"
-            columns: ["user_id"]
+            foreignKeyName: "tasks_project_id_fkey"
+            columns: ["project_id"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "projects"
             referencedColumns: ["id"]
           },
         ]
       }
-      users: {
-        Row: {
-          email: string | null
-          id: string
-          role: string | null
-        }
-        Insert: {
-          email?: string | null
-          id: string
-          role?: string | null
-        }
-        Update: {
-          email?: string | null
-          id?: string
-          role?: string | null
-        }
-        Relationships: []
-      }
-    }
-    Views: {
-      [_ in never]: never
     }
     Functions: {
       [_ in never]: never

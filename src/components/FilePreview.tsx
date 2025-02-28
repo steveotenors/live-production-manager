@@ -1,295 +1,436 @@
 'use client';
 
-import { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { 
-  FileText, 
-  Music, 
-  Video, 
-  File, 
-  Image as ImageIcon, 
-  Download, 
-  ExternalLink, 
-  Clock, 
-  Calendar, 
-  Eye, 
-  Code 
-} from 'lucide-react';
+  Dialog, 
+  DialogContent,
+  DialogTitle,
+  DialogHeader,
+  DialogFooter,
+  DialogDescription
+} from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Badge } from '@/components/ui/badge';
-
-type FileItem = {
-  id: string;
-  name: string;
-  type: 'folder' | 'file';
-  fileType?: string;
-  size?: number;
-  updated?: string;
-  path: string;
-  url?: string;
-};
+import { 
+  X, 
+  Download, 
+  Maximize2, 
+  Play, 
+  Pause, 
+  Volume2, 
+  VolumeX, 
+  SkipBack, 
+  SkipForward, 
+  FileText, 
+  Eye,
+  Image as ImageIcon,
+  Music,
+  File
+} from 'lucide-react';
+import { Slider } from '@/components/ui/slider';
+import { Progress } from '@/components/ui/progress';
 
 interface FilePreviewProps {
-  file: FileItem | null;
+  file: {
+    name: string;
+    url: string;
+    type?: string;
+    size?: number;
+  } | null;
   isOpen: boolean;
   onClose: () => void;
-  onNavigate?: (path: string) => void; // For folder navigation
 }
 
-export function FilePreview({ file, isOpen, onClose, onNavigate }: FilePreviewProps) {
-  const [imageError, setImageError] = useState(false);
-
-  if (!file) return null;
-
-  function formatSize(bytes?: number): string {
-    if (bytes === undefined) return '-';
+const FilePreview: React.FC<FilePreviewProps> = ({ file, isOpen, onClose }) => {
+  // Audio player states
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [isMuted, setIsMuted] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [volume, setVolume] = useState(80);
+  
+  // Image states
+  const [isImageLoading, setIsImageLoading] = useState(true);
+  const [imageError, setImageError] = useState<string | null>(null);
+  
+  // PDF states
+  const [isPdfLoading, setIsPdfLoading] = useState(true);
+  const [pdfError, setPdfError] = useState<string | null>(null);
+  const [numPages, setNumPages] = useState<number | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  
+  // Refs
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+  
+  // Determine file type
+  const getFileType = (): 'image' | 'audio' | 'pdf' | 'video' | 'text' | 'unknown' => {
+    if (!file) return 'unknown';
     
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-    return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
-  }
-
-  function getFileIcon() {
-    if (!file) return <File className="h-6 w-6 text-gray-500" />;
+    const fileName = file.name.toLowerCase();
+    const mimeType = file.type?.toLowerCase() || '';
     
-    if (file.type === 'folder') {
-      return <FileText className="h-6 w-6 text-blue-500" />;
+    if (fileName.match(/\.(jpg|jpeg|png|gif|webp|bmp|svg)$/)) return 'image';
+    if (fileName.match(/\.(mp3|wav|ogg|m4a|flac|aac)$/)) return 'audio';
+    if (fileName.match(/\.(mp4|webm|ogv|mov|avi)$/)) return 'video';
+    if (fileName.match(/\.(pdf)$/)) return 'pdf';
+    if (fileName.match(/\.(txt|md|rtf)$/)) return 'text';
+    
+    // Check by mime type as fallback
+    if (mimeType.startsWith('image/')) return 'image';
+    if (mimeType.startsWith('audio/')) return 'audio';
+    if (mimeType.startsWith('video/')) return 'video';
+    if (mimeType === 'application/pdf') return 'pdf';
+    if (mimeType.startsWith('text/')) return 'text';
+    
+    return 'unknown';
+  };
+  
+  // Audio player functions
+  const togglePlayPause = () => {
+    if (audioRef.current) {
+      if (isPlaying) {
+        audioRef.current.pause();
+      } else {
+        audioRef.current.play().catch(error => {
+          console.error('Error playing audio:', error);
+        });
+      }
+      setIsPlaying(!isPlaying);
     }
+  };
+  
+  const toggleMute = () => {
+    if (audioRef.current) {
+      audioRef.current.muted = !isMuted;
+      setIsMuted(!isMuted);
+    }
+  };
+  
+  const handleTimeUpdate = () => {
+    if (audioRef.current) {
+      setCurrentTime(audioRef.current.currentTime);
+    }
+  };
+  
+  const handleLoadedMetadata = () => {
+    if (audioRef.current) {
+      setDuration(audioRef.current.duration);
+    }
+  };
+  
+  const handleSeek = (value: number[]) => {
+    const newTime = value[0];
+    setCurrentTime(newTime);
+    if (audioRef.current) {
+      audioRef.current.currentTime = newTime;
+    }
+  };
+  
+  const handleVolumeChange = (value: number[]) => {
+    const newVolume = value[0];
+    setVolume(newVolume);
+    if (audioRef.current) {
+      audioRef.current.volume = newVolume / 100;
+    }
+  };
+  
+  const skipBackward = () => {
+    if (audioRef.current) {
+      audioRef.current.currentTime = Math.max(0, audioRef.current.currentTime - 10);
+    }
+  };
+  
+  const skipForward = () => {
+    if (audioRef.current) {
+      audioRef.current.currentTime = Math.min(audioRef.current.duration, audioRef.current.currentTime + 10);
+    }
+  };
+  
+  // Format time in MM:SS format
+  const formatTime = (seconds: number) => {
+    if (isNaN(seconds)) return "0:00";
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+  
+  // Reset state when dialog closes
+  useEffect(() => {
+    if (!isOpen) {
+      setIsPlaying(false);
+      setCurrentTime(0);
+      setDuration(0);
+      setIsImageLoading(true);
+      setImageError(null);
+      setIsPdfLoading(true);
+      setPdfError(null);
+    }
+  }, [isOpen]);
+  
+  // Get appropriate file icon
+  const getFileIcon = () => {
+    const fileType = getFileType();
     
-    switch (file.fileType?.toLowerCase()) {
+    switch (fileType) {
+      case 'image':
+        return <ImageIcon className="h-12 w-12 text-blue-500" />;
+      case 'audio':
+        return <Music className="h-12 w-12 text-green-500" />;
       case 'pdf':
-        return <FileText className="h-6 w-6 text-rose-500" />;
-      case 'mp3':
-      case 'wav':
-      case 'ogg':
-        return <Music className="h-6 w-6 text-purple-500" />;
-      case 'mp4':
-      case 'mov':
-      case 'avi':
-        return <Video className="h-6 w-6 text-blue-500" />;
-      case 'jpg':
-      case 'jpeg':
-      case 'png':
-      case 'gif':
-      case 'webp':
-        return <ImageIcon className="h-6 w-6 text-green-500" />;
-      case 'txt':
-      case 'md':
-        return <FileText className="h-6 w-6 text-gray-500" />;
-      case 'js':
-      case 'ts':
-      case 'jsx':
-      case 'tsx':
-      case 'html':
-      case 'css':
-      case 'json':
-        return <Code className="h-6 w-6 text-amber-500" />;
+        return <FileText className="h-12 w-12 text-red-500" />;
+      case 'video':
+        return <Play className="h-12 w-12 text-purple-500" />;
+      case 'text':
+        return <FileText className="h-12 w-12 text-orange-500" />;
       default:
-        return <File className="h-6 w-6 text-gray-500" />;
+        return <File className="h-12 w-12 text-gray-500" />;
     }
-  }
-
-  function renderPreviewContent() {
+  };
+  
+  // Render preview based on file type
+  const renderPreview = () => {
     if (!file) return null;
     
-    if (file.type === 'folder') {
-      // Mock folder content for demo - in real app, fetch folder contents
-      const folderContents = [
-        { id: 'f1', name: 'Example File 1.pdf', type: 'file', fileType: 'pdf', size: 2.4 * 1024 * 1024, path: `${file.path}/example-file-1.pdf` },
-        { id: 'f2', name: 'Example File 2.mp3', type: 'file', fileType: 'mp3', size: 8.7 * 1024 * 1024, path: `${file.path}/example-file-2.mp3` },
-        { id: 'f3', name: 'Subfolder', type: 'folder', path: `${file.path}/subfolder` },
-      ];
-      
-      return (
-        <div className="space-y-4">
-          <p className="text-sm text-muted-foreground">Folder contents:</p>
-          <div className="border rounded-md divide-y">
-            {folderContents.map((item) => (
-              <div 
-                key={item.id}
-                className="p-3 flex items-center justify-between hover:bg-muted/50 cursor-pointer"
-                onClick={() => onNavigate?.(item.path)}
-              >
-                <div className="flex items-center">
-                  {item.type === 'folder' ? (
-                    <FileText className="h-5 w-5 text-blue-500 mr-2" />
-                  ) : (
-                    <File className="h-5 w-5 text-gray-500 mr-2" />
-                  )}
-                  <span>{item.name}</span>
+    const fileType = getFileType();
+    
+    switch (fileType) {
+      case 'image':
+        return (
+          <div className="relative flex items-center justify-center h-full w-full bg-black/5">
+            {isImageLoading && (
+              <div className="absolute inset-0 flex items-center justify-center bg-muted/30">
+                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+              </div>
+            )}
+            {imageError && (
+              <div className="text-center p-6">
+                <Eye className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                <p className="text-muted-foreground">Unable to preview this image.</p>
+                <p className="text-sm text-red-500 mt-2">{imageError}</p>
+              </div>
+            )}
+            <img
+              src={file.url}
+              alt={file.name}
+              className="max-h-full max-w-full object-contain"
+              style={{ display: isImageLoading ? 'none' : 'block' }}
+              onLoad={() => setIsImageLoading(false)}
+              onError={(e) => {
+                setIsImageLoading(false);
+                setImageError('Failed to load image');
+              }}
+            />
+          </div>
+        );
+        
+      case 'audio':
+        return (
+          <div className="flex flex-col items-center justify-center p-6 max-w-xl mx-auto">
+            <div className="mb-8 bg-muted/30 rounded-lg p-8 w-full text-center">
+              <Music className="h-24 w-24 text-primary/60 mx-auto mb-4" />
+              <h3 className="font-medium text-lg mb-1">{file.name}</h3>
+              {duration > 0 && (
+                <p className="text-sm text-muted-foreground">
+                  Duration: {formatTime(duration)}
+                </p>
+              )}
+            </div>
+            
+            <audio
+              ref={audioRef}
+              src={file.url}
+              className="hidden"
+              onTimeUpdate={handleTimeUpdate}
+              onLoadedMetadata={handleLoadedMetadata}
+              onEnded={() => setIsPlaying(false)}
+            />
+            
+            <div className="w-full space-y-6">
+              {/* Progress/seek slider */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-sm text-muted-foreground w-12 text-right">
+                    {formatTime(currentTime)}
+                  </span>
+                  <Slider
+                    value={[currentTime]}
+                    max={duration || 100}
+                    step={1}
+                    onValueChange={handleSeek}
+                    className="flex-1"
+                  />
+                  <span className="text-sm text-muted-foreground w-12">
+                    {formatTime(duration)}
+                  </span>
                 </div>
-                {item.type === 'file' && (
-                  <span className="text-sm text-muted-foreground">{formatSize(item.size)}</span>
-                )}
               </div>
-            ))}
-          </div>
-        </div>
-      );
-    }
-
-    // File preview based on file type
-    const fileType = file.fileType?.toLowerCase();
-    
-    // PDF Preview
-    if (fileType === 'pdf' && file.url) {
-      return (
-        <div className="h-[400px] w-full border rounded-md overflow-hidden">
-          <iframe 
-            src={`${file.url}#toolbar=0`} 
-            className="w-full h-full"
-            title={file.name}
-          />
-        </div>
-      );
-    }
-    
-    // Image Preview
-    if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(fileType || '') && file.url) {
-      return (
-        <>
-          {!imageError ? (
-            <div className="max-h-[400px] flex items-center justify-center overflow-hidden border rounded-md p-2">
-              <img 
-                src={file.url} 
-                alt={file.name} 
-                className="max-w-full max-h-[380px] object-contain"
-                onError={() => setImageError(true)}
-              />
+              
+              {/* Audio controls */}
+              <div className="flex items-center justify-center gap-4">
+                <Button 
+                  variant="outline" 
+                  size="icon" 
+                  onClick={skipBackward}
+                  className="rounded-full"
+                >
+                  <SkipBack className="h-4 w-4" />
+                </Button>
+                
+                <Button
+                  onClick={togglePlayPause}
+                  className="h-14 w-14 rounded-full"
+                >
+                  {isPlaying ? (
+                    <Pause className="h-6 w-6" />
+                  ) : (
+                    <Play className="h-6 w-6 ml-1" />
+                  )}
+                </Button>
+                
+                <Button 
+                  variant="outline" 
+                  size="icon" 
+                  onClick={skipForward}
+                  className="rounded-full"
+                >
+                  <SkipForward className="h-4 w-4" />
+                </Button>
+              </div>
+              
+              {/* Volume control */}
+              <div className="flex items-center gap-2">
+                <Button 
+                  variant="ghost"
+                  size="icon"
+                  onClick={toggleMute}
+                >
+                  {isMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+                </Button>
+                <Slider
+                  value={[volume]}
+                  max={100}
+                  step={1}
+                  onValueChange={handleVolumeChange}
+                  className="w-28"
+                />
+              </div>
             </div>
-          ) : (
-            <div className="p-8 text-center border rounded-md">
-              <ImageIcon className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-              <p className="text-muted-foreground">Unable to preview image</p>
-            </div>
-          )}
-        </>
-      );
-    }
-    
-    // Audio Preview
-    if (['mp3', 'wav', 'ogg'].includes(fileType || '') && file.url) {
-      return (
-        <div className="p-6 border rounded-md">
-          <div className="w-full mb-6 flex justify-center">
-            <Music className="h-16 w-16 text-purple-500" />
           </div>
-          <audio controls className="w-full">
-            <source src={file.url} type={`audio/${fileType}`} />
-            Your browser does not support the audio element.
-          </audio>
-        </div>
-      );
-    }
-    
-    // Video Preview
-    if (['mp4', 'mov', 'webm'].includes(fileType || '') && file.url) {
-      return (
-        <div className="border rounded-md overflow-hidden">
-          <video controls className="w-full max-h-[400px]">
-            <source src={file.url} type={`video/${fileType}`} />
-            Your browser does not support the video element.
-          </video>
-        </div>
-      );
-    }
-    
-    // Text/Code Preview (mock for demonstration)
-    if (['txt', 'md', 'js', 'ts', 'html', 'css', 'json'].includes(fileType || '')) {
-      return (
-        <div className="border rounded-md overflow-hidden">
-          <div className="bg-muted p-2 border-b">
-            <span className="text-sm font-mono">{file.name}</span>
+        );
+        
+      case 'pdf':
+        return (
+          <div className="relative w-full h-full">
+            {isPdfLoading && (
+              <div className="absolute inset-0 flex items-center justify-center bg-muted/30">
+                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+              </div>
+            )}
+            {pdfError && (
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="text-center p-6">
+                  <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                  <p className="text-muted-foreground">Unable to preview this PDF.</p>
+                  <p className="text-sm text-red-500 mt-2">{pdfError}</p>
+                </div>
+              </div>
+            )}
+            <iframe
+              ref={iframeRef}
+              src={`${file.url}#toolbar=0`}
+              className="w-full h-full border-0"
+              title={`Preview of ${file.name}`}
+              onLoad={() => setIsPdfLoading(false)}
+              onError={() => {
+                setIsPdfLoading(false);
+                setPdfError('Failed to load PDF');
+              }}
+            />
           </div>
-          <pre className="p-4 text-sm font-mono bg-muted/30 max-h-[380px] overflow-auto">
-            {/* Mock text content - in real app, fetch file content */}
-            {`// This is a preview of ${file.name}
-// In a real application, the file content would be loaded here.
-
-function example() {
-  console.log("Hello world!");
-  return true;
-}
-
-// File size: ${formatSize(file.size)}
-// Last updated: ${file.updated || 'Unknown'}`}
-          </pre>
-        </div>
-      );
-    }
-    
-    // Default - No preview available
-    return (
-      <div className="p-12 text-center border rounded-md">
-        <File className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
-        <h3 className="text-lg font-medium mb-2">Preview not available</h3>
-        <p className="text-muted-foreground mb-6">This file type cannot be previewed directly.</p>
-        <div className="flex justify-center">
-          {file.url && (
-            <Button className="mr-2">
-              <Download className="h-4 w-4 mr-2" /> Download
-            </Button>
-          )}
-          {file.url && (
-            <Button variant="outline">
-              <ExternalLink className="h-4 w-4 mr-2" /> Open in new tab
-            </Button>
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <Dialog open={isOpen} onOpenChange={(open: boolean) => !open && onClose()}>
-      <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <div className="flex items-start gap-3">
+        );
+        
+      default:
+        return (
+          <div className="flex flex-col items-center justify-center p-12">
             {getFileIcon()}
-            <div>
-              <DialogTitle className="text-xl">{file.name}</DialogTitle>
-              <div className="flex items-center gap-3 mt-2">
-                <Badge variant="outline">
-                  {file.type === 'folder' ? 'Folder' : file.fileType?.toUpperCase() || 'File'}
-                </Badge>
-                {file.size && (
-                  <span className="text-sm text-muted-foreground flex items-center">
-                    <Clock className="h-3.5 w-3.5 mr-1" />
-                    {formatSize(file.size)}
-                  </span>
-                )}
-                {file.updated && (
-                  <span className="text-sm text-muted-foreground flex items-center">
-                    <Calendar className="h-3.5 w-3.5 mr-1" />
-                    {file.updated}
-                  </span>
-                )}
-              </div>
-            </div>
+            <h3 className="mt-4 font-medium">No preview available</h3>
+            <p className="text-sm text-muted-foreground mt-2">
+              This file type cannot be previewed. Please download the file to view it.
+            </p>
+            <Button 
+              className="mt-6"
+              onClick={() => window.open(file.url, '_blank')}
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Download File
+            </Button>
           </div>
+        );
+    }
+  };
+  
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="max-w-5xl h-[80vh] p-0 flex flex-col">
+        <DialogHeader className="sr-only">
+          <DialogTitle>{file?.name}</DialogTitle>
         </DialogHeader>
         
-        <div className="mt-6">
-          {renderPreviewContent()}
+        {/* Header with file name and controls */}
+        <div className="flex items-center justify-between p-4 border-b">
+          <div className="flex items-center">
+            {file && getFileIcon()}
+            <h2 className="ml-3 text-lg font-medium truncate max-w-lg">{file?.name}</h2>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => file && window.open(file.url, '_blank')}
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Download
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => file && window.open(file.url, '_blank')}
+            >
+              <Maximize2 className="h-4 w-4 mr-2" />
+              Open in New Tab
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onClose}
+              className="h-8 w-8"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
         
-        <DialogFooter className="mt-6">
-          {file.type !== 'folder' && file.url && (
-            <Button className="mr-2" onClick={() => window.open(file.url, '_blank')}>
-              <Download className="h-4 w-4 mr-2" /> Download
-            </Button>
+        {/* Main content area */}
+        <div className="flex-1 overflow-auto">
+          {renderPreview()}
+        </div>
+        
+        {/* Footer with additional info */}
+        <div className="p-3 border-t text-xs text-muted-foreground bg-muted/30">
+          {file && (
+            <>
+              <span>File type: {file.name.split('.').pop()?.toUpperCase() || 'Unknown'}</span>
+              {file.size && (
+                <span className="ml-4">
+                  Size: {(file.size / (1024 * 1024)).toFixed(2)} MB
+                </span>
+              )}
+            </>
           )}
-          {file.type === 'folder' && (
-            <Button onClick={() => onNavigate?.(file.path)}>
-              <Eye className="h-4 w-4 mr-2" /> Open Folder
-            </Button>
-          )}
-          <Button variant="outline" onClick={onClose}>
-            Close
-          </Button>
-        </DialogFooter>
+        </div>
       </DialogContent>
     </Dialog>
   );
-} 
+};
+
+export default FilePreview; 

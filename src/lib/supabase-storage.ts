@@ -7,8 +7,718 @@ import { toast } from '@/components/ui/use-toast';
 // Utility function to delay execution
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
+// Default delay between API calls to prevent rate limiting (200ms)
+const API_CALL_DELAY = 200; 
+
 // The bucket where files are stored
 const STORAGE_BUCKET = 'production-files';
+
+// Default bucket name
+const DEFAULT_BUCKET = 'production-files';
+
+/**
+ * Helper function to handle common storage errors with consistent messaging
+ * @param error The error object from Supabase
+ * @param operation Description of the operation that failed
+ */
+function handleStorageError(error: any, operation: string) {
+  console.error(`Storage ${operation} error:`, error);
+  
+  // Handle known error types
+  if (error.message && error.message.includes('infinite recursion detected in policy')) {
+    toast({
+      title: 'Storage Access Error',
+      description: 'There is an issue with storage permissions. Please contact your administrator.',
+      variant: 'destructive',
+    });
+    return 'Storage policy configuration issue. Please contact an administrator.';
+  }
+  
+  // Rate limit errors
+  if (error.message && error.message.includes('rate limit')) {
+    toast({
+      title: 'Too Many Requests',
+      description: 'Please wait a moment before trying again.',
+      variant: 'destructive',
+    });
+    return 'Rate limit exceeded. Please wait and try again.';
+  }
+  
+  // General error message
+  toast({
+    title: `Error ${operation}`,
+    description: error.message || 'An unexpected error occurred',
+    variant: 'destructive',
+  });
+  
+  return error.message || 'Unknown error';
+}
+
+/**
+ * List files in a directory
+ * @param path Directory path
+ * @param bucket Bucket name
+ * @returns List of files and directories
+ */
+export async function listFiles(path: string = '', bucket: string = DEFAULT_BUCKET) {
+  try {
+    // Add delay to prevent too many requests
+    await delay(API_CALL_DELAY);
+    
+    const { data, error } = await supabaseClient.storage
+      .from(bucket)
+      .list(path, {
+        sortBy: { column: 'name', order: 'asc' },
+      });
+    
+    if (error) {
+      // Handle specific error cases
+      const errorMessage = handleStorageError(error, 'listing files');
+      return {
+        data: [],
+        error: errorMessage
+      };
+    }
+    
+    // Process files to identify folders and regular files
+    const processedFiles = data?.map((item: any) => {
+      // If it's an entry with null metadata or a .folder file, treat it as a folder
+      const isFolder = item.metadata === null || 
+                        item.name.endsWith('.folder') || 
+                        item.metadata?.mimetype === 'application/x-directory';
+      
+      if (isFolder) {
+        // For folders, clean up the name if it has .folder extension
+        const displayName = item.name.endsWith('.folder') 
+          ? item.name.replace('.folder', '') 
+          : item.name;
+          
+        const folderPath = path 
+          ? `${path}${path.endsWith('/') ? '' : '/'}${displayName}/` 
+          : `${displayName}/`;
+        
+        return {
+          id: `folder-${folderPath}`,
+          name: displayName,
+          path: folderPath,
+          type: 'folder' as const,
+          size: 0,
+          updated: item.updated_at || item.created_at,
+          created_at: item.created_at
+        };
+      }
+      
+      // Otherwise, it's a regular file
+      const filePath = path 
+        ? `${path}${path.endsWith('/') ? '' : '/'}${item.name}` 
+        : item.name;
+      
+      return {
+        id: `file-${filePath}`,
+        name: item.name,
+        path: filePath,
+        type: 'file' as const,
+        size: item.metadata?.size || 0,
+        updated: item.updated_at || item.created_at,
+        metadata: item.metadata,
+        created_at: item.created_at
+      };
+    }) || [];
+    
+    return { data: processedFiles, error: null };
+  } catch (error) {
+    console.error('Error listing files:', error);
+    return {
+      data: null,
+      error: error instanceof Error ? error.message : 'Unknown error occurred'
+    };
+  }
+}
+
+/**
+ * Get a signed URL for a file
+ * @param filePath Path to the file
+ * @param expiresIn Expiration time in seconds
+ * @param bucket Bucket name
+ * @returns Signed URL
+ */
+export async function getFileUrl(filePath: string, expiresIn: number = 3600, bucket: string = DEFAULT_BUCKET) {
+  try {
+    // Add delay to prevent too many requests
+    await delay(API_CALL_DELAY);
+    
+    const { data, error } = await supabaseClient.storage
+      .from(bucket)
+      .createSignedUrl(filePath, expiresIn);
+    
+    if (error) {
+      // Handle specific error cases
+      const errorMessage = handleStorageError(error, 'generating file URL');
+      return { data: null, error: errorMessage };
+    }
+    
+    return { data, error: null };
+  } catch (error) {
+    console.error('Error getting file URL:', error);
+    return {
+      data: null,
+      error: error instanceof Error ? error.message : 'Unknown error occurred'
+    };
+  }
+}
+
+/**
+ * Delete a file or folder
+ * @param path Path to the file or folder
+ * @param bucket Bucket name
+ * @param isFolder Whether the path is a folder
+ * @returns Success or error
+ */
+export async function deleteFile(path: string, bucket: string = DEFAULT_BUCKET, isFolder: boolean = false) {
+  try {
+    // Add delay to prevent too many requests
+    await delay(API_CALL_DELAY);
+    
+    if (isFolder) {
+      // For folders, we need to delete all files inside first
+      console.log('Deleting folder:', path);
+      
+      // List all files in the folder
+      const { data: folderContents, error: listError } = await supabaseClient.storage
+        .from(bucket)
+        .list(path, {
+          sortBy: { column: 'name', order: 'asc' },
+        });
+      
+      if (listError) {
+        // Handle specific error cases
+        const errorMessage = handleStorageError(listError, 'listing folder contents for deletion');
+        return { data: null, error: errorMessage };
+      }
+      
+      // Delete all files in the folder
+      if (folderContents && folderContents.length > 0) {
+        const filesToDelete = folderContents.map(item => 
+          `${path}${path.endsWith('/') ? '' : '/'}${item.name}`
+        );
+        
+        // Delete files in batches of 10
+        while (filesToDelete.length > 0) {
+          const batch = filesToDelete.splice(0, 10);
+          
+          // Add delay between batch deletion requests
+          await delay(API_CALL_DELAY);
+          
+          const { error: deleteError } = await supabaseClient.storage
+            .from(bucket)
+            .remove(batch);
+          
+          if (deleteError) {
+            const errorMessage = handleStorageError(deleteError, 'deleting folder contents');
+            return { success: false, error: errorMessage };
+          }
+        }
+      }
+      
+      // Finally, delete the folder marker file if it exists
+      // Add delay before final deletion
+      await delay(API_CALL_DELAY);
+      
+      const folderMarkerPath = `${path}${path.endsWith('/') ? '' : '/'}`;
+      const { error: markerError } = await supabaseClient.storage
+        .from(bucket)
+        .remove([`${folderMarkerPath}.folder`]);
+      
+      if (markerError) {
+        // Don't treat this as fatal, just log it
+        console.log('No marker file found or error deleting marker:', markerError);
+      }
+      
+      return { success: true, error: null };
+    } else {
+      // For regular files, just delete them
+      const { error } = await supabaseClient.storage
+        .from(bucket)
+        .remove([path]);
+      
+      if (error) {
+        const errorMessage = handleStorageError(error, 'deleting file');
+        return { success: false, error: errorMessage };
+      }
+      
+      return { success: true, error: null };
+    }
+  } catch (error) {
+    console.error('Error deleting file/folder:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred'
+    };
+  }
+}
+
+/**
+ * Create a new folder
+ * @param folderPath Path to the new folder
+ * @param bucket Bucket name
+ * @returns Success or error
+ */
+export async function createFolder(folderPath: string, bucket: string = DEFAULT_BUCKET) {
+  try {
+    // Add delay to prevent too many requests
+    await delay(API_CALL_DELAY);
+    
+    // Create a .folder file as a marker for the folder
+    const { error } = await supabaseClient.storage
+      .from(bucket)
+      .upload(`${folderPath}/.folder`, new File([], `.folder`));
+    
+    if (error) {
+      const errorMessage = handleStorageError(error, 'creating folder');
+      return { success: false, error: errorMessage };
+    }
+    
+    return { success: true, error: null };
+  } catch (error) {
+    console.error('Error creating folder:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred'
+    };
+  }
+}
+
+/**
+ * Move a file from one location to another
+ * @param sourcePath Source file path
+ * @param targetPath Target file path
+ * @param bucket Bucket name
+ * @returns Success or error
+ */
+export async function moveFile(sourcePath: string, targetPath: string, bucket: string = DEFAULT_BUCKET) {
+  try {
+    // Add delay to prevent too many requests
+    await delay(API_CALL_DELAY);
+    
+    // Check if file with same name exists at target
+    const targetDir = targetPath.substring(0, targetPath.lastIndexOf('/'));
+    const fileName = targetPath.substring(targetPath.lastIndexOf('/') + 1);
+    
+    const { data: existingFiles, error: listError } = await supabaseClient.storage
+      .from(bucket)
+      .list(targetDir, {
+        limit: 100,
+      });
+    
+    if (listError) {
+      const errorMessage = handleStorageError(listError, 'checking target directory');
+      return { success: false, error: errorMessage };
+    }
+    
+    // If file with same name exists, add timestamp to filename
+    if (existingFiles?.some(f => f.name === fileName)) {
+      const timestamp = new Date().getTime();
+      const fileExt = fileName.includes('.') ? `.${fileName.split('.').pop()}` : '';
+      const baseName = fileName.includes('.') ? fileName.substring(0, fileName.lastIndexOf('.')) : fileName;
+      const newFileName = `${baseName}_${timestamp}${fileExt}`;
+      
+      // Update target path with new filename
+      targetPath = `${targetDir}/${newFileName}`;
+    }
+    
+    // Add delay before download
+    await delay(API_CALL_DELAY);
+    
+    // Download the file from source
+    const { data: fileData, error: downloadError } = await supabaseClient.storage
+      .from(bucket)
+      .download(sourcePath);
+    
+    if (downloadError) {
+      const errorMessage = handleStorageError(downloadError, 'downloading file for move');
+      return { success: false, error: errorMessage };
+    }
+    
+    if (!fileData) {
+      return { success: false, error: 'File data is null' };
+    }
+    
+    // Add delay before upload
+    await delay(API_CALL_DELAY);
+    
+    // Upload to target
+    const { error: uploadError } = await supabaseClient.storage
+      .from(bucket)
+      .upload(targetPath, fileData, {
+        cacheControl: '3600',
+        upsert: false
+      });
+    
+    if (uploadError) {
+      const errorMessage = handleStorageError(uploadError, 'uploading file to new location');
+      return { success: false, error: errorMessage };
+    }
+    
+    // Add delay before deletion
+    await delay(API_CALL_DELAY);
+    
+    // Delete from source
+    const { error: deleteError } = await supabaseClient.storage
+      .from(bucket)
+      .remove([sourcePath]);
+    
+    if (deleteError) {
+      const errorMessage = handleStorageError(deleteError, 'removing original file');
+      // Don't fail the operation if delete fails, just log it
+      console.warn('Failed to delete source file after move:', errorMessage);
+    }
+    
+    return { success: true, error: null, newPath: targetPath };
+  } catch (error) {
+    console.error('Error moving file:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred',
+      newPath: null
+    };
+  }
+}
+
+/**
+ * Copy a file from one location to another
+ * @param sourcePath Source file path
+ * @param targetPath Target file path
+ * @param bucket Bucket name
+ * @returns Success or error
+ */
+export async function copyFile(sourcePath: string, targetPath: string, bucket: string = DEFAULT_BUCKET) {
+  try {
+    // Add delay to prevent too many requests
+    await delay(API_CALL_DELAY);
+    
+    // Check if file with same name exists at target
+    const targetDir = targetPath.substring(0, targetPath.lastIndexOf('/'));
+    const fileName = targetPath.substring(targetPath.lastIndexOf('/') + 1);
+    
+    const { data: existingFiles, error: listError } = await supabaseClient.storage
+      .from(bucket)
+      .list(targetDir, {
+        limit: 100,
+      });
+    
+    if (listError) {
+      const errorMessage = handleStorageError(listError, 'checking target directory');
+      return { success: false, error: errorMessage, newPath: null };
+    }
+    
+    // If file with same name exists, add timestamp to filename
+    if (existingFiles?.some(f => f.name === fileName)) {
+      const timestamp = new Date().getTime();
+      const fileExt = fileName.includes('.') ? `.${fileName.split('.').pop()}` : '';
+      const baseName = fileName.includes('.') ? fileName.substring(0, fileName.lastIndexOf('.')) : fileName;
+      const newFileName = `${baseName}_${timestamp}${fileExt}`;
+      
+      // Update target path with new filename
+      targetPath = `${targetDir}/${newFileName}`;
+    }
+    
+    // Add delay before download
+    await delay(API_CALL_DELAY);
+    
+    // Download the file from source
+    const { data: fileData, error: downloadError } = await supabaseClient.storage
+      .from(bucket)
+      .download(sourcePath);
+    
+    if (downloadError) {
+      const errorMessage = handleStorageError(downloadError, 'downloading file for copy');
+      return { success: false, error: errorMessage, newPath: null };
+    }
+    
+    if (!fileData) {
+      return { success: false, error: 'File data is null', newPath: null };
+    }
+    
+    // Add delay before upload
+    await delay(API_CALL_DELAY);
+    
+    // Upload to target
+    const { error: uploadError } = await supabaseClient.storage
+      .from(bucket)
+      .upload(targetPath, fileData, {
+        cacheControl: '3600',
+        upsert: false
+      });
+    
+    if (uploadError) {
+      const errorMessage = handleStorageError(uploadError, 'uploading file copy');
+      return { success: false, error: errorMessage, newPath: null };
+    }
+    
+    return { success: true, error: null, newPath: targetPath };
+  } catch (error) {
+    console.error('Error copying file:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred',
+      newPath: null
+    };
+  }
+}
+
+/**
+ * Rename a file or folder
+ * @param currentPath Current path
+ * @param newName New name (not full path)
+ * @param bucket Bucket name
+ * @param isFolder Whether the path is a folder
+ * @returns Success or error
+ */
+export async function renameFile(
+  currentPath: string, 
+  newName: string, 
+  bucket: string = DEFAULT_BUCKET,
+  isFolder: boolean = false
+) {
+  try {
+    // Add delay to prevent too many requests
+    await delay(API_CALL_DELAY);
+    
+    // Extract directory and construct new path
+    const lastSlashIndex = currentPath.lastIndexOf('/');
+    const directory = lastSlashIndex >= 0 ? currentPath.substring(0, lastSlashIndex) : '';
+    const newPath = directory ? `${directory}/${newName}` : newName;
+    
+    if (isFolder) {
+      // For folders, we need to:
+      // 1. List all files in the folder
+      // 2. Move each file to a new path
+      // 3. Create a new folder marker
+      // 4. Delete the old folder marker
+      
+      // First, make sure the folder path ends with /
+      const folderPath = currentPath.endsWith('/') ? currentPath : `${currentPath}/`;
+      const newFolderPath = newPath.endsWith('/') ? newPath : `${newPath}/`;
+      
+      // List all files in the folder
+      const { data: folderContents, error: listError } = await supabaseClient.storage
+        .from(bucket)
+        .list(folderPath, {
+          sortBy: { column: 'name', order: 'asc' },
+        });
+      
+      if (listError) {
+        const errorMessage = handleStorageError(listError, 'listing folder contents for rename');
+        return { success: false, error: errorMessage, newPath: null };
+      }
+      
+      // Move each file
+      if (folderContents && folderContents.length > 0) {
+        for (const item of folderContents) {
+          // Add delay between operations
+          await delay(API_CALL_DELAY);
+          
+          const sourcePath = `${folderPath}${item.name}`;
+          const targetPath = `${newFolderPath}${item.name}`;
+          
+          // Use our moveFile function
+          const { success, error } = await moveFile(sourcePath, targetPath, bucket);
+          
+          if (!success) {
+            return { 
+              success: false, 
+              error: `Failed to move file ${sourcePath}: ${error}`,
+              newPath: null
+            };
+          }
+        }
+      }
+      
+      // Add delay before creating folder
+      await delay(API_CALL_DELAY);
+      
+      // Create new folder marker
+      const { success: folderSuccess, error: folderError } = await createFolder(newFolderPath, bucket);
+      
+      if (!folderSuccess) {
+        console.warn('Failed to create folder marker during rename:', folderError);
+        // Don't fail the operation if this fails, as files were moved successfully
+      }
+      
+      // Add delay before deleting
+      await delay(API_CALL_DELAY);
+      
+      // Delete old folder marker
+      const { error: deleteError } = await supabaseClient.storage
+        .from(bucket)
+        .remove([`${folderPath}.folder`]);
+      
+      if (deleteError) {
+        console.log('No marker file found or error deleting marker:', deleteError);
+        // Don't fail operation just for marker cleanup
+      }
+      
+      return { success: true, error: null, newPath: newFolderPath };
+    } else {
+      // For files, just use moveFile
+      const { success, error, newPath: resultPath } = await moveFile(currentPath, newPath, bucket);
+      
+      return { success, error, newPath: success ? resultPath : null };
+    }
+  } catch (error) {
+    console.error('Error renaming file/folder:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred',
+      newPath: null
+    };
+  }
+}
+
+/**
+ * Process multiple files with the same operation (delete, move, etc.)
+ * @param paths Array of file paths
+ * @param operation Function to process each file
+ * @param bucket Bucket name
+ * @returns Results for each file
+ */
+export async function batchProcessFiles(
+  paths: string[],
+  operation: (path: string, bucket: string) => Promise<any>,
+  bucket: string = DEFAULT_BUCKET
+) {
+  const results = [];
+  
+  for (const path of paths) {
+    const result = await operation(path, bucket);
+    results.push({ path, ...result });
+    
+    // Use consistent delay value to prevent rate limiting
+    await delay(API_CALL_DELAY);
+  }
+  
+  return results;
+}
+
+/**
+ * Search for files by name
+ * @param searchTerm Search term
+ * @param path Directory to search in (recursive)
+ * @param bucket Bucket name
+ * @returns Matching files
+ */
+export async function searchFiles(searchTerm: string, path: string = '', bucket: string = DEFAULT_BUCKET) {
+  try {
+    // Add initial delay
+    await delay(API_CALL_DELAY);
+    
+    // Helper function to recursively search directories
+    async function searchDirectory(dirPath: string, results: any[] = []) {
+      // Add delay before listing directory
+      await delay(API_CALL_DELAY);
+      
+      const { data, error } = await supabaseClient.storage
+        .from(bucket)
+        .list(dirPath, {
+          sortBy: { column: 'name', order: 'asc' },
+        });
+      
+      if (error) {
+        const errorMessage = handleStorageError(error, 'searching directory contents');
+        throw new Error(errorMessage);
+      }
+      
+      if (!data) return results;
+      
+      // Process current directory items
+      for (const item of data) {
+        const itemPath = dirPath ? `${dirPath}/${item.name}` : item.name;
+        
+        // Check if it's a folder
+        const isFolder = item.metadata === null || 
+                          item.name.endsWith('.folder') || 
+                          item.metadata?.mimetype === 'application/x-directory';
+        
+        // If the name matches, add to results
+        if (item.name.toLowerCase().includes(searchTerm.toLowerCase())) {
+          const result = {
+            id: isFolder ? `folder-${itemPath}` : `file-${itemPath}`,
+            name: isFolder && item.name.endsWith('.folder') ? item.name.replace('.folder', '') : item.name,
+            path: itemPath,
+            type: isFolder ? 'folder' : 'file',
+            size: item.metadata?.size || 0,
+            updated: item.updated_at || item.created_at,
+            metadata: item.metadata,
+            created_at: item.created_at
+          };
+          
+          results.push(result);
+        }
+        
+        // If it's a folder, search recursively (but with a small delay)
+        if (isFolder) {
+          const folderPath = itemPath.endsWith('/') ? itemPath : `${itemPath}/`;
+          await searchDirectory(folderPath, results);
+        }
+      }
+      
+      return results;
+    }
+    
+    const results = await searchDirectory(path);
+    return { data: results, error: null };
+  } catch (error) {
+    console.error('Error searching files:', error);
+    return {
+      data: null,
+      error: error instanceof Error ? error.message : 'Unknown error occurred'
+    };
+  }
+}
+
+/**
+ * Get storage bucket details and check access permissions
+ * @param bucketName Bucket name
+ * @returns Bucket information and access status
+ */
+export async function checkBucketAccess(bucketName: string = DEFAULT_BUCKET) {
+  try {
+    // Check if we can list files in the bucket
+    const { data, error } = await supabaseClient.storage
+      .from(bucketName)
+      .list('');
+    
+    // Get user info
+    const { data: userData } = await supabaseClient.auth.getUser();
+    
+    // Get bucket information
+    const { data: bucketsData, error: bucketsError } = await supabaseClient.storage
+      .getBucket(bucketName);
+    
+    return {
+      success: !error,
+      message: error ? error.message : 'Bucket accessible',
+      bucket: bucketsData,
+      hasAccess: !error,
+      authStatus: {
+        authenticated: !!userData?.user,
+        user: userData?.user
+      }
+    };
+  } catch (error) {
+    console.error('Error checking bucket access:', error);
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : 'Unknown error occurred',
+      bucket: null,
+      hasAccess: false,
+      authStatus: {
+        authenticated: false,
+        user: null
+      }
+    };
+  }
+}
 
 /**
  * List files in a specific path in the bucket
@@ -16,7 +726,7 @@ const STORAGE_BUCKET = 'production-files';
  * @param bucketName Storage bucket name
  * @returns Array of file and folder items
  */
-export async function listFiles(
+export async function listFilesInBucket(
   path: string = '',
   bucketName: string = 'production-files'
 ): Promise<FileItem[]> {
@@ -91,7 +801,7 @@ export async function listFiles(
  * @param path Path of the file or folder to delete
  * @param bucketName Storage bucket name
  */
-export async function deleteFile(
+export async function deleteFileInBucket(
   path: string,
   bucketName: string = 'production-files'
 ): Promise<void> {
@@ -123,7 +833,7 @@ export async function deleteFile(
       for (const item of data || []) {
         const itemPath = `${folderPath}${item.name}`;
         if (!item.metadata) { // It's a subfolder
-          await deleteFile(itemPath, bucketName);
+          await deleteFileInBucket(itemPath, bucketName);
         } else { // It's a file
           const { error: deleteError } = await supabaseClient.storage
             .from(bucketName)
@@ -161,7 +871,7 @@ export async function deleteFile(
  * @param folderName Name of the new folder
  * @param bucketName Storage bucket name
  */
-export async function createFolder(
+export async function createFolderInBucket(
   currentPath: string = '',
   folderName: string,
   bucketName: string = 'production-files'
@@ -206,42 +916,13 @@ export async function createFolder(
 }
 
 /**
- * Get a signed URL for a file
- * @param path Path to the file
- * @param bucketName Storage bucket name
- * @param expiresIn Expiration time in seconds (default: 60)
- * @returns Signed URL
- */
-export async function getSignedUrl(
-  path: string,
-  bucketName: string = 'production-files',
-  expiresIn: number = 60
-): Promise<string> {
-  try {
-    const { data, error } = await supabaseClient.storage
-      .from(bucketName)
-      .createSignedUrl(path, expiresIn);
-    
-    if (error) {
-      console.error('Error generating signed URL:', error.message);
-      throw new Error(`Failed to generate signed URL: ${error.message}`);
-    }
-    
-    return data.signedUrl;
-  } catch (error) {
-    console.error('Error in getSignedUrl:', error);
-    throw error;
-  }
-}
-
-/**
  * Upload a file with optional path
  * @param file File to upload
  * @param path Path to upload to (optional)
  * @param bucketName Storage bucket name
  * @returns Upload result
  */
-export async function uploadFile(
+export async function uploadFileInBucket(
   file: File,
   path: string = '',
   bucketName: string = 'production-files'
@@ -297,7 +978,7 @@ export async function uploadFile(
  * @param path The path of the file to download
  * @returns A promise that resolves to the downloaded file
  */
-export async function downloadFile(path: string): Promise<Blob> {
+export async function downloadFileInBucket(path: string): Promise<Blob> {
   try {
     const { data, error } = await supabaseClient.storage
       .from(STORAGE_BUCKET)
@@ -323,9 +1004,9 @@ export async function downloadFile(path: string): Promise<Blob> {
  * Deletes all files in the storage bucket
  * @returns A promise that resolves when all files are deleted
  */
-export async function deleteAllFiles(): Promise<void> {
+export async function deleteAllFilesInBucket(): Promise<void> {
   try {
-    await deleteFilesRecursively('');
+    await deleteFilesRecursivelyInBucket('');
     console.log('Successfully deleted all files and folders');
   } catch (error) {
     console.error('Failed to delete files:', error);
@@ -337,7 +1018,7 @@ export async function deleteAllFiles(): Promise<void> {
  * Recursively deletes files and folders from a path
  * @param path The path to delete files from
  */
-async function deleteFilesRecursively(path: string): Promise<void> {
+async function deleteFilesRecursivelyInBucket(path: string): Promise<void> {
   try {
     // Normalize path
     const normalizedPath = path ? path.endsWith('/') ? path : `${path}/` : '';
@@ -362,7 +1043,7 @@ async function deleteFilesRecursively(path: string): Promise<void> {
     
     // Recursively process subfolders first
     for (const folder of folders) {
-      await deleteFilesRecursively(`${normalizedPath}${folder.name}`);
+      await deleteFilesRecursivelyInBucket(`${normalizedPath}${folder.name}`);
     }
     
     // Then delete files at this level
@@ -390,7 +1071,7 @@ async function deleteFilesRecursively(path: string): Promise<void> {
  * Checks the bucket contents and provides detailed diagnostic information
  * @returns A promise resolving to diagnostic information about the bucket
  */
-export async function checkBucketStatus(): Promise<{ 
+export async function checkBucketStatusInBucket(): Promise<{ 
   success: boolean; 
   message: string; 
   details: any;
@@ -475,7 +1156,7 @@ export async function checkBucketStatus(): Promise<{
 /**
  * Direct check of the bucket with minimal abstractions
  */
-export async function directBucketCheck() {
+export async function directBucketCheckInBucket() {
   console.log('[DIRECT-CHECK] Starting direct bucket check...');
   
   try {
@@ -570,5 +1251,74 @@ export async function directBucketCheck() {
       message: `Unexpected error: ${error instanceof Error ? error.message : String(error)}`,
       details: { error }
     };
+  }
+}
+
+/**
+ * Uploads a file to Supabase storage in the specified project folder
+ * @param file The file to upload
+ * @param projectId The project ID to upload the file to
+ * @param customPath Optional custom path within the project folder
+ * @returns The URL of the uploaded file
+ */
+export async function uploadFile(
+  file: File,
+  projectId: string,
+  customPath?: string
+): Promise<string> {
+  try {
+    console.log('[UPLOAD] Starting file upload process', {
+      fileName: file.name,
+      fileSize: file.size,
+      projectId,
+      customPath
+    });
+    
+    // Create storage path - either in custom path or directly in project folder
+    const storagePath = customPath 
+      ? `project-${projectId}/${customPath}/${file.name}`
+      : `project-${projectId}/${file.name}`;
+    
+    console.log(`[UPLOAD] Storage path: ${storagePath}`);
+    
+    // Add small delay to prevent rate limiting
+    await delay(API_CALL_DELAY);
+    
+    // Upload the file
+    const { data, error } = await supabaseClient.storage
+      .from(DEFAULT_BUCKET)
+      .upload(storagePath, file, {
+        cacheControl: '3600',
+        upsert: true // Use upsert true to overwrite existing files
+      });
+    
+    if (error) {
+      console.error('[UPLOAD] Supabase error details:', JSON.stringify(error, null, 2));
+      const errorMessage = handleStorageError(error, 'uploading file');
+      throw new Error(`Upload failed: ${errorMessage}`);
+    }
+    
+    console.log('[UPLOAD] File uploaded successfully, getting URL');
+    
+    // Get the public URL for the file
+    const { data: urlData } = supabaseClient.storage
+      .from(DEFAULT_BUCKET)
+      .getPublicUrl(storagePath);
+    
+    console.log('[UPLOAD] Complete, URL generated');
+    return urlData?.publicUrl || '';
+  } catch (error: any) {
+    console.error('[UPLOAD] Error uploading file:', error);
+    console.error('[UPLOAD] Error details:', JSON.stringify(error, null, 2));
+    
+    // Use a more descriptive error message for the toast
+    toast({
+      title: 'Upload Failed',
+      description: error.message || 'Failed to upload file. Please try again.',
+      variant: 'destructive',
+    });
+    
+    // Throw a new Error with a cleaner message rather than the raw object
+    throw new Error(error.message || 'Unknown upload error');
   }
 } 

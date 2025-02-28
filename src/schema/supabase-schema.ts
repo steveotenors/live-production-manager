@@ -17,7 +17,6 @@ export const SCHEMA = {
         fields: [
           { name: 'id', type: 'integer', primaryKey: true }, // Changed to integer
           { name: 'name', type: 'text', nullable: false },
-          { name: 'musical_director_id', type: 'uuid', nullable: true, references: 'users.id' },
           { name: 'composer_arranger', type: 'text', nullable: true },
           { name: 'piece_name', type: 'text', nullable: true },
           { name: 'version_number', type: 'text', nullable: true },
