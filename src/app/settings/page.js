@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -24,8 +24,53 @@ export default function SettingsPage() {
     darkMode: false,
     compactMode: false
   });
+
+  // Initialize dark mode setting from local storage
+  useEffect(() => {
+    // Check for saved theme in localStorage
+    const savedTheme = localStorage.getItem('theme');
+    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    
+    // Set initial dark mode value based on saved preference or system preference
+    const initialDark = savedTheme ? savedTheme === 'dark' : prefersDark;
+    
+    setSettings(prev => ({
+      ...prev,
+      darkMode: initialDark
+    }));
+
+    // Apply theme class to document for initial render
+    if (initialDark) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, []);
+  
+  const handleDarkModeToggle = (checked) => {
+    // Add transitioning class for smooth color changes
+    document.documentElement.classList.add('transitioning');
+    
+    setSettings({...settings, darkMode: checked});
+    
+    // Apply theme changes
+    if (checked) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+    
+    // Save preference
+    localStorage.setItem('theme', checked ? 'dark' : 'light');
+    
+    // Remove transitioning class after animation completes
+    setTimeout(() => {
+      document.documentElement.classList.remove('transitioning');
+    }, 500);
+  };
   
   const handleSave = () => {
+    // No need to save theme here since we already save it when toggled
     toast({
       title: "Settings saved",
       description: "Your preferences have been updated."
@@ -106,9 +151,7 @@ export default function SettingsPage() {
               <Switch 
                 id="dark-mode" 
                 checked={settings.darkMode}
-                onCheckedChange={(checked) => 
-                  setSettings({...settings, darkMode: checked})
-                }
+                onCheckedChange={handleDarkModeToggle}
               />
             </div>
             

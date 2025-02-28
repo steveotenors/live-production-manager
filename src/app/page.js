@@ -4,8 +4,24 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { FolderPlus, Calendar, LogOut, ArrowRight } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
+import { EmptyState } from '@/components/ui/empty-state';
+import { LoadingSpinner } from '@/components/ui/loading-spinner';
+import { PageHeader } from '@/components/ui/page-header';
+import { 
+  FolderPlus, 
+  Calendar, 
+  CheckSquare, 
+  Clock, 
+  Users,
+  FileText, 
+  ArrowRight, 
+  Settings, 
+  LogOut
+} from 'lucide-react';
 import { supabaseClient } from '@/lib/supabaseClient';
 import { useToast } from '@/components/ui/use-toast';
 import { formatDistanceToNow } from 'date-fns';
@@ -15,6 +31,11 @@ export default function Home() {
   const { toast } = useToast();
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState({
+    totalProjects: 0,
+    activeProjects: 0,
+    upcomingEvents: 0
+  });
   
   useEffect(() => {
     fetchProjects();
@@ -63,6 +84,13 @@ export default function Home() {
       
       console.log('Projects fetched successfully:', data?.length || 0);
       setProjects(data || []);
+      
+      // Update stats
+      setStats({
+        totalProjects: data?.length || 0,
+        activeProjects: data?.filter(p => p.status === 'active').length || 0,
+        upcomingEvents: 2 // Mock data - replace with real count from API
+      });
     } catch (error) {
       console.error('Error fetching projects:', error);
       toast({
@@ -92,187 +120,250 @@ export default function Home() {
       });
     }
   };
-
-  // Custom date formatter function instead of using date-fns
-  const formatUpdatedAt = (dateString) => {
-    try {
-      const date = new Date(dateString);
-      const now = new Date();
-      const diffMs = now - date;
-      const diffSec = Math.floor(diffMs / 1000);
-      const diffMin = Math.floor(diffSec / 60);
-      const diffHour = Math.floor(diffMin / 60);
-      const diffDay = Math.floor(diffHour / 24);
-      const diffMonth = Math.floor(diffDay / 30);
-      const diffYear = Math.floor(diffMonth / 12);
-      
-      if (diffYear > 0) {
-        return diffYear === 1 ? 'about 1 year ago' : `about ${diffYear} years ago`;
-      } else if (diffMonth > 0) {
-        return diffMonth === 1 ? 'about 1 month ago' : `about ${diffMonth} months ago`;
-      } else if (diffDay > 0) {
-        return diffDay === 1 ? 'yesterday' : `${diffDay} days ago`;
-      } else if (diffHour > 0) {
-        return diffHour === 1 ? 'about 1 hour ago' : `about ${diffHour} hours ago`;
-      } else if (diffMin > 0) {
-        return diffMin === 1 ? 'a minute ago' : `${diffMin} minutes ago`;
-      } else {
-        return 'just now';
-      }
-    } catch (e) {
-      return 'Unknown date';
-    }
-  };
-
+  
   return (
-    <div className="max-w-6xl mx-auto py-6 px-4">
-      <header className="flex justify-between items-center mb-8 pb-4 border-b border-gray-200 dark:border-gray-800">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
-          <p className="text-sm text-muted-foreground mt-1">Manage your production projects</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={() => router.push('/settings')}
-          >
-            Settings
-          </Button>
-          <Button 
-            variant="destructive" 
-            size="sm" 
-            onClick={handleLogout}
-            className="bg-red-600 hover:bg-red-700"
-          >
-            <LogOut className="h-4 w-4 mr-2" />
-            Sign Out
-          </Button>
-        </div>
-      </header>
-      
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        <div className="lg:col-span-3">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-lg font-medium">Projects</h2>
-            <Button 
-              size="sm" 
-              className="bg-blue-600 hover:bg-blue-700 text-white"
-              onClick={() => router.push('/projects/new')}
-            >
-              <FolderPlus className="h-4 w-4 mr-2" />
-              New Project
-            </Button>
-          </div>
+    <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6">
+      <div className="flex flex-col gap-8">
+        {/* Header Section */}
+        <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
+          <PageHeader
+            heading="Dashboard"
+            description="Manage your production projects"
+          />
           
-          <div className="bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-md shadow-sm overflow-hidden">
-            <div className="p-3 border-b bg-gray-50 dark:bg-gray-900">
-              <div className="grid grid-cols-8 text-xs font-medium text-gray-500 dark:text-gray-400">
-                <div className="col-span-5">Project Name</div>
-                <div className="col-span-3">Last Updated</div>
-              </div>
-            </div>
-            
-            {loading ? (
-              <div className="divide-y divide-gray-100 dark:divide-gray-800">
-                {[1, 2, 3].map((i) => (
-                  <div key={i} className="p-3">
-                    <div className="animate-pulse flex space-x-4">
-                      <div className="flex-1 space-y-2 py-1">
-                        <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-3/4"></div>
-                        <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-1/2"></div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="divide-y divide-gray-100 dark:divide-gray-800">
-                {projects.length === 0 ? (
-                  <div className="p-8 text-center">
-                    <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 dark:bg-gray-800 mb-4">
-                      <FolderPlus className="h-8 w-8 text-gray-500 dark:text-gray-400" />
-                    </div>
-                    <p className="text-sm font-medium text-gray-500 dark:text-gray-400">No projects yet</p>
-                    <p className="text-xs text-gray-400 dark:text-gray-500 mb-4">
-                      Create your first project to get started.
-                    </p>
-                    <Button 
-                      onClick={() => router.push('/projects/new')}
-                      className="bg-blue-600 hover:bg-blue-700 text-white"
-                    >
-                      <FolderPlus className="h-4 w-4 mr-2" />
-                      Create Project
-                    </Button>
-                  </div>
-                ) : (
-                  projects.map((project) => (
-                    <div 
-                      key={project.id} 
-                      className="p-3 grid grid-cols-8 items-center hover:bg-gray-50 dark:hover:bg-gray-900 cursor-pointer"
-                      onClick={() => router.push(`/projects/${project.id}`)}
-                    >
-                      <div className="col-span-5">
-                        <p className="font-medium">{project.name}</p>
-                        {project.description && (
-                          <p className="text-xs text-gray-500 dark:text-gray-400 truncate pr-4">
-                            {project.description}
-                          </p>
-                        )}
-                      </div>
-                      <div className="col-span-3 text-sm text-gray-500 dark:text-gray-400">
-                        {formatUpdatedAt(project.updated_at)}
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            )}
-            
-            {projects.length > 0 && (
-              <div className="p-3 bg-gray-50 dark:bg-gray-900 flex justify-end border-t border-gray-200 dark:border-gray-800">
-                <Button 
-                  size="sm" 
-                  variant="ghost" 
-                  onClick={() => router.push('/projects')}
-                  className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950"
-                >
-                  View All Projects
-                  <ArrowRight className="h-4 w-4 ml-1" />
-                </Button>
-              </div>
-            )}
+          <div className="flex items-center gap-3">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => router.push('/settings')}
+              className="h-9"
+            >
+              <Settings className="h-4 w-4 mr-2" />
+              Settings
+            </Button>
+            <Button 
+              variant="destructive" 
+              size="sm" 
+              onClick={handleLogout}
+              className="h-9"
+            >
+              <LogOut className="h-4 w-4 mr-2" />
+              Sign Out
+            </Button>
           </div>
         </div>
         
-        <div>
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-lg font-medium">Upcoming Events</h2>
-          </div>
+        {/* Quick Stats Section */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-2">
+                <div className="rounded-md bg-primary/10 p-2">
+                  <FolderPlus className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Total Projects</p>
+                  {loading ? (
+                    <Skeleton className="h-7 w-16 mt-1" />
+                  ) : (
+                    <p className="text-2xl font-semibold">{stats.totalProjects}</p>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
           
-          <Card className="border border-gray-200 dark:border-gray-800 shadow-sm bg-white dark:bg-gray-950">
-            <CardHeader className="py-3 px-4 border-b border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-900">
-              <CardTitle className="text-sm font-medium flex justify-between items-center">
-                <span>Next 7 Days</span>
-                <Button 
-                  size="sm" 
-                  variant="ghost" 
-                  onClick={() => router.push('/schedule')}
-                  className="h-7 text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950"
-                >
-                  <Calendar className="h-3 w-3 mr-1" />
-                  View Calendar
-                </Button>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-0">
-              <div className="text-sm text-center py-8 text-gray-500 dark:text-gray-400">
-                No upcoming events
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-2">
+                <div className="rounded-md bg-success/10 p-2">
+                  <CheckSquare className="h-5 w-5 text-success" />
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Active Projects</p>
+                  {loading ? (
+                    <Skeleton className="h-7 w-16 mt-1" />
+                  ) : (
+                    <p className="text-2xl font-semibold">{stats.activeProjects}</p>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-2">
+                <div className="rounded-md bg-secondary/10 p-2">
+                  <Calendar className="h-5 w-5 text-secondary" />
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Upcoming Events</p>
+                  {loading ? (
+                    <Skeleton className="h-7 w-16 mt-1" />
+                  ) : (
+                    <p className="text-2xl font-semibold">{stats.upcomingEvents}</p>
+                  )}
+                </div>
               </div>
             </CardContent>
           </Card>
         </div>
+        
+        {/* Main Content */}
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+          {/* Projects List */}
+          <div className="lg:col-span-3">
+            <Card className="overflow-hidden border shadow-sm">
+              <CardHeader className="px-6 py-4 bg-muted/50 flex flex-row items-center justify-between">
+                <CardTitle className="text-lg">Recent Projects</CardTitle>
+                <Button 
+                  size="sm" 
+                  onClick={() => router.push('/projects/new')}
+                  className="h-9"
+                >
+                  <FolderPlus className="h-4 w-4 mr-2" />
+                  New Project
+                </Button>
+              </CardHeader>
+              
+              <div className="px-6 py-3 border-b bg-card">
+                <div className="grid grid-cols-12 text-xs font-medium text-muted-foreground">
+                  <div className="col-span-6 md:col-span-5">Project Name</div>
+                  <div className="col-span-3 md:col-span-4">Status</div>
+                  <div className="col-span-3">Last Updated</div>
+                </div>
+              </div>
+              
+              {loading ? (
+                <CardContent className="divide-y p-0">
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className="p-6">
+                      <div className="flex flex-col gap-2">
+                        <Skeleton className="h-5 w-3/4" />
+                        <Skeleton className="h-4 w-1/2" />
+                      </div>
+                    </div>
+                  ))}
+                </CardContent>
+              ) : (
+                <CardContent className="divide-y p-0">
+                  {projects.length === 0 ? (
+                    <EmptyState
+                      icon={<FolderPlus />}
+                      title="No projects yet"
+                      description="Create your first project to get started."
+                      action={
+                        <Button 
+                          onClick={() => router.push('/projects/new')}
+                        >
+                          <FolderPlus className="h-4 w-4 mr-2" />
+                          Create Project
+                        </Button>
+                      }
+                    />
+                  ) : (
+                    projects.slice(0, 5).map((project) => (
+                      <div 
+                        key={project.id} 
+                        className="px-6 py-4 grid grid-cols-12 items-center hover:bg-muted/40 cursor-pointer transition-colors"
+                        onClick={() => router.push(`/projects/${project.id}`)}
+                      >
+                        <div className="col-span-6 md:col-span-5">
+                          <p className="font-medium">{project.name}</p>
+                          {project.description && (
+                            <p className="text-xs text-muted-foreground truncate pr-4 mt-1">
+                              {project.description}
+                            </p>
+                          )}
+                        </div>
+                        <div className="col-span-3 md:col-span-4">
+                          <Badge variant={project.status === 'active' ? 'success' : project.status === 'completed' ? 'secondary' : 'outline'}>
+                            {project.status || 'draft'}
+                          </Badge>
+                        </div>
+                        <div className="col-span-3 text-sm text-muted-foreground">
+                          {formatDistanceToNow(new Date(project.updated_at), { addSuffix: true })}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </CardContent>
+              )}
+              
+              {projects.length > 0 && (
+                <CardFooter className="flex justify-center md:justify-end p-4 bg-muted/50 border-t">
+                  <Button 
+                    variant="outline"
+                    onClick={() => router.push('/projects')}
+                    className="h-9"
+                  >
+                    View All Projects
+                    <ArrowRight className="h-4 w-4 ml-2" />
+                  </Button>
+                </CardFooter>
+              )}
+            </Card>
+          </div>
+          
+          {/* Sidebar Cards */}
+          <div className="space-y-6">
+            {/* Upcoming Events Card */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg">Coming Up</CardTitle>
+                <CardDescription>Your next scheduled events</CardDescription>
+              </CardHeader>
+              <CardContent className="grid gap-4">
+                {loading ? (
+                  Array(2).fill(0).map((_, i) => (
+                    <div key={i} className="flex flex-col gap-2">
+                      <Skeleton className="h-5 w-2/3" />
+                      <Skeleton className="h-4 w-1/2" />
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-center py-6 text-muted-foreground">
+                    <Calendar className="h-8 w-8 mx-auto opacity-50 mb-2" />
+                    <p className="text-sm">No upcoming events</p>
+                  </div>
+                )}
+              </CardContent>
+              <CardFooter>
+                <Button variant="ghost" size="sm" className="w-full" onClick={() => router.push('/schedule')}>
+                  <Calendar className="h-4 w-4 mr-2" />
+                  View Schedule
+                </Button>
+              </CardFooter>
+            </Card>
+            
+            {/* Quick Actions Card */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg">Quick Actions</CardTitle>
+              </CardHeader>
+              <CardContent className="grid gap-2">
+                <Button variant="outline" className="justify-start h-9" onClick={() => router.push('/projects/new')}>
+                  <FolderPlus className="h-4 w-4 mr-2" />
+                  <span>New Project</span>
+                </Button>
+                <Button variant="outline" className="justify-start h-9" onClick={() => router.push('/schedule')}>
+                  <Calendar className="h-4 w-4 mr-2" />
+                  <span>Schedule Event</span>
+                </Button>
+                <Button variant="outline" className="justify-start h-9" onClick={() => router.push('/tasks')}>
+                  <CheckSquare className="h-4 w-4 mr-2" />
+                  <span>View Tasks</span>
+                </Button>
+                <Button variant="outline" className="justify-start h-9" onClick={() => router.push('/team')}>
+                  <Users className="h-4 w-4 mr-2" />
+                  <span>Team</span>
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
       </div>
     </div>
   );
-} 
+}

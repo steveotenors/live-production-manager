@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Toaster } from '@/components/ui/toaster';
+import { ThemeToggle } from '@/components/ThemeToggle';
 
 export default function ClientLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -204,6 +205,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
       </main>
       
       <Toaster />
+      <ThemeToggle />
     </div>
   );
 } 

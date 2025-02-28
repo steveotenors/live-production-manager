@@ -63,48 +63,54 @@
   }
  
   .dark {
+    /* Enhanced Dark Mode - Based on Design System */
     --background: 222 47% 4.9%; /* #0f172a dark variant */
-    --foreground: 0 0% 98%; /* Near white */
+    --foreground: 210 40% 98%; /* Enhanced near white for better readability */
  
-    --card: 222 47% 4.9%; /* #0f172a dark variant */
-    --card-foreground: 0 0% 98%; /* Near white */
+    --card: 222 47% 6.5%; /* Slightly lighter than background for card distinction */
+    --card-foreground: 210 40% 98%; /* Near white */
  
-    --popover: 222 47% 4.9%; /* #0f172a dark variant */
-    --popover-foreground: 0 0% 98%; /* Near white */
+    --popover: 223 47% 8%; /* Slightly lighter for popover contrast */
+    --popover-foreground: 210 40% 98%; /* Near white */
  
-    --primary: 217 91% 60%; /* #2563eb - keep the same blue */
+    --primary: 217 91% 60%; /* #2563eb - keeping vibrant primary color */
     --primary-foreground: 0 0% 100%; /* White */
  
-    --secondary: 215 16% 47%; /* #6b7280 */
-    --secondary-foreground: 0 0% 98%; /* Near white */
+    --secondary: 215 25% 27%; /* Enhanced secondary for better contrast in dark mode */
+    --secondary-foreground: 210 40% 98%; /* Near white */
  
     --muted: 217 33% 17.5%; /* Darker muted */
-    --muted-foreground: 215 20% 65%; /* Lighter text for dark mode */
+    --muted-foreground: 215 20% 70%; /* Brighter text for better contrast */
  
-    --accent: 217 33% 17.5%; /* Darker accent */
-    --accent-foreground: 0 0% 98%; /* Near white */
+    --accent: 217 33% 18%; /* Enhanced slightly brighter accent for visibility */
+    --accent-foreground: 210 40% 98%; /* Near white */
  
-    --destructive: 0 62.8% 30.6%; /* Darker red */
-    --destructive-foreground: 0 0% 98%; /* Near white */
+    --destructive: 0 70% 42%; /* Brighter red for visibility in dark mode */
+    --destructive-foreground: 210 40% 98%; /* Near white */
 
-    --success: 158 64% 30%; /* Darker success */
-    --success-foreground: 0 0% 98%; /* Near white */
+    --success: 158 64% 39%; /* Brighter success for visibility */
+    --success-foreground: 210 40% 98%; /* Near white */
 
-    --info: 217 91% 50%; /* Slightly darker info */
-    --info-foreground: 0 0% 98%; /* Near white */
+    --info: 217 91% 60%; /* Keeping vibrant info color */
+    --info-foreground: 210 40% 98%; /* Near white */
 
-    --warning: 35 92% 42%; /* Darker warning */
-    --warning-foreground: 0 0% 98%; /* Near white */
+    --warning: 35 92% 50%; /* Brighter warning for visibility */
+    --warning-foreground: 210 40% 98%; /* Near white */
  
-    --border: 217 33% 17.5%; /* Darker border */
-    --input: 217 33% 17.5%; /* Darker input */
-    --ring: 224 76% 48%; /* Brighter ring for visibility */
+    --border: 217 33% 19%; /* Slightly brighter border for visibility */
+    --input: 217 33% 19%; /* Slightly brighter input for visibility */
+    --ring: 224 76% 55%; /* Brighter ring for visibility */
 
     --chart-1: 220 70% 50%;
     --chart-2: 160 60% 45%;
     --chart-3: 30 80% 55%;
     --chart-4: 280 65% 60%;
     --chart-5: 340 75% 55%;
+    
+    /* Dark mode specific shadow tokens */
+    --elevation-1: 0 1px 3px rgba(0,0,0,0.3), 0 1px 2px rgba(0,0,0,0.2);
+    --elevation-2: 0 4px 6px -1px rgba(0,0,0,0.4), 0 2px 4px -1px rgba(0,0,0,0.2);
+    --elevation-3: 0 10px 15px -3px rgba(0,0,0,0.4), 0 4px 6px -2px rgba(0,0,0,0.2);
   }
 }
  
@@ -113,6 +119,51 @@
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground transition-colors duration-medium;
+  }
+}
+
+/* Enhanced dark mode styling */
+@layer components {
+  /* Better card contrast in dark mode */
+  .dark .card,
+  .dark .bg-card {
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  }
+  
+  /* Soften borders in dark mode for less harsh lines */
+  .dark * {
+    border-color: rgba(255, 255, 255, 0.1);
+  }
+  
+  /* Better button contrast in dark mode */
+  .dark .btn-primary,
+  .dark .bg-primary {
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.05);
+  }
+  
+  /* Improve scrollbar visibility in dark mode */
+  .dark ::-webkit-scrollbar {
+    width: 14px;
+    height: 14px;
+  }
+  
+  .dark ::-webkit-scrollbar-track {
+    background-color: hsl(var(--background));
+  }
+  
+  .dark ::-webkit-scrollbar-thumb {
+    background-color: hsl(var(--muted));
+    border: 3px solid hsl(var(--background));
+    border-radius: 7px;
+  }
+  
+  .dark ::-webkit-scrollbar-thumb:hover {
+    background-color: hsl(var(--muted-foreground));
+  }
+  
+  /* Smooth transition between light/dark modes */
+  html.transitioning * {
+    transition: background-color 0.5s ease, border-color 0.5s ease, color 0.5s ease !important;
   }
 }

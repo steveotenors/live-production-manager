@@ -2,41 +2,58 @@ import { ReactNode } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 interface PageHeaderProps {
-  title: string;
+  heading: string;
   description?: string;
   backHref?: string;
   backLabel?: string;
   children?: ReactNode;
+  className?: string;
 }
 
 export function PageHeader({ 
-  title, 
+  heading, 
   description, 
   backHref, 
   backLabel = 'Back', 
-  children 
+  children,
+  className,
+  ...props
 }: PageHeaderProps) {
   return (
-    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">{title}</h1>
-        {description && (
-          <p className="text-muted-foreground mt-1">{description}</p>
-        )}
-      </div>
+    <div 
+      className={cn(
+        "space-y-1",
+        className
+      )}
+      {...props}
+    >
+      {backHref && (
+        <Button 
+          asChild 
+          variant="ghost" 
+          size="sm" 
+          className="h-8 pl-0 mb-2 hover:bg-transparent text-muted-foreground hover:text-foreground"
+        >
+          <Link href={backHref}>
+            <ArrowLeft className="mr-1 h-4 w-4" /> {backLabel}
+          </Link>
+        </Button>
+      )}
       
-      <div className="flex items-center gap-2 self-end sm:self-auto">
-        {backHref && (
-          <Button asChild variant="outline" size="sm">
-            <Link href={backHref}>
-              <ArrowLeft className="mr-2 h-4 w-4" /> {backLabel}
-            </Link>
-          </Button>
-        )}
-        {children}
-      </div>
+      <h1 className="text-2xl font-semibold tracking-tight">{heading}</h1>
+      
+      {description && (
+        <p className="text-sm text-muted-foreground">{description}</p>
+      )}
+      
+      {children && (
+        <div className="flex items-center gap-2 pt-2">
+          {children}
+        </div>
+      )}
     </div>
   );
 } 

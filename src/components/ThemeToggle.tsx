@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react';
 import { Moon, Sun } from 'lucide-react';
 
 export function ThemeToggle() {
-  const [isDark, setIsDark] = useState(true);
+  const [isDark, setIsDark] = useState(false);
   
   useEffect(() => {
     // Check if we have a saved preference
@@ -26,6 +26,10 @@ export function ThemeToggle() {
   }, []);
 
   const toggleTheme = () => {
+    // Add transitioning class for smooth color changes
+    document.documentElement.classList.add('transitioning');
+    
+    // Toggle dark mode
     const newIsDark = !isDark;
     setIsDark(newIsDark);
     
@@ -37,6 +41,11 @@ export function ThemeToggle() {
     
     // Save preference
     localStorage.setItem('theme', newIsDark ? 'dark' : 'light');
+    
+    // Remove transitioning class after animation completes
+    setTimeout(() => {
+      document.documentElement.classList.remove('transitioning');
+    }, 500);
   };
 
   return (
@@ -44,7 +53,8 @@ export function ThemeToggle() {
       variant="outline" 
       size="icon" 
       onClick={toggleTheme} 
-      className="fixed bottom-4 right-4 z-50 rounded-full bg-background text-foreground border-border"
+      className="fixed bottom-4 right-4 z-50 rounded-full bg-background text-foreground border-border shadow-md hover:shadow-lg transition-all"
+      aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
     >
       {isDark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
     </Button>
