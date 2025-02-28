@@ -5,7 +5,8 @@ import { useParams, useRouter } from 'next/navigation';
 import { supabaseClient } from '@/lib/supabaseClient';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
-import FileManager from './component';
+// Import directly from components to avoid any re-export issues
+import FileManager from '@/components/FileManager';
 import { RealtimeChannel } from '@supabase/supabase-js';
 
 // Update FilesPage component to accept our props
@@ -17,6 +18,7 @@ export default function FilesPage() {
   const [project, setProject] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [realtimeEnabled, setRealtimeEnabled] = useState(true);
   
   // Handle special path parameters like "new"
   const isSpecialPath = projectId === 'new';
@@ -93,11 +95,21 @@ export default function FilesPage() {
             </span>
           )}
         </h1>
+        
+        <Button 
+          variant="outline" 
+          size="sm"
+          onClick={() => setRealtimeEnabled(!realtimeEnabled)}
+          className={realtimeEnabled ? "bg-green-100" : ""}
+        >
+          Real-time {realtimeEnabled ? "On" : "Off"}
+        </Button>
       </div>
       
       <FileManager 
         projectId={projectId} 
-        basePath={`project-${projectId}`} 
+        basePath={`project-${projectId}`}
+        realtimeEnabled={realtimeEnabled}
       />
     </div>
   );

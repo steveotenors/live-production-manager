@@ -33,7 +33,7 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
         const { data, error } = await supabaseClient
           .from('projects')
           .select('*')
-          .eq('id', Number(params.id))
+          .eq('id', params.id)
           .single();
 
         if (error) throw error;
@@ -54,7 +54,7 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
         const { data, error } = await supabaseClient
           .from('practice_sessions')
           .select('*')
-          .eq('project_id', Number(params.id))
+          .eq('project_id', params.id)
           .order('created_at', { ascending: false });
 
         if (error) throw error;
@@ -102,8 +102,8 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
     );
   }
 
-  // Safely access metadata fields
-  const metadata = project.metadata as Record<string, any> || {};
+  // Safely access metadata fields with optional chaining and type assertions
+  const metadata = (project as any).metadata as Record<string, any> || {};
   const composerArranger = metadata.composer_arranger as string || '';
   const pieceName = metadata.piece_name as string || '';
   const versionNumber = metadata.version_number as string || '';

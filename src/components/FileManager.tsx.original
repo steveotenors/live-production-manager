@@ -193,81 +193,6 @@ export default function FileManager({ projectId, basePath = '', realtimeEnabled 
   const [selectedItems, setSelectedItems] = useState<(FileItem | FolderItem)[]>([]);
   const [isMultiSelectMode, setIsMultiSelectMode] = useState(false);
   const [showBatchActionsMenu, setShowBatchActionsMenu] = useState(false);
-
-  const renderFilePreview = () => {
-    if (!selectedItem || !previewUrl) return null;
-    
-    const fileExtension = selectedItem.name.split('.').pop()?.toLowerCase();
-    
-    // Handle images
-    if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(fileExtension || '')) {
-      return (
-        <div className="flex items-center justify-center p-4 max-h-[70vh] overflow-hidden">
-          <img 
-            src={previewUrl} 
-            alt={selectedItem.name} 
-            className="max-w-full max-h-[70vh] object-contain" 
-          />
-        </div>
-      );
-    }
-    
-    // Handle video
-    if (['mp4', 'webm', 'ogg'].includes(fileExtension || '')) {
-      return (
-        <div className="p-4">
-          <video 
-            controls 
-            className="max-w-full max-h-[70vh]" 
-            src={previewUrl}
-          >
-            Your browser does not support the video tag.
-          </video>
-        </div>
-      );
-    }
-    
-    // Handle audio
-    if (['mp3', 'wav', 'ogg'].includes(fileExtension || '')) {
-      return (
-        <div className="p-4">
-          <audio 
-            controls 
-            className="w-full" 
-            src={previewUrl}
-          >
-            Your browser does not support the audio tag.
-          </audio>
-        </div>
-      );
-    }
-    
-    // Handle PDFs
-    if (fileExtension === 'pdf') {
-      return (
-        <div className="p-4 h-[70vh]">
-          <iframe 
-            src={previewUrl} 
-            className="w-full h-full"
-            title={selectedItem.name}
-          ></iframe>
-        </div>
-      );
-    }
-    
-    // For other files, show download link
-    return (
-      <div className="p-8 text-center">
-        <p className="mb-4">Preview not available for this file type.</p>
-        <Button asChild>
-          <a href={previewUrl} download={selectedItem.name} target="_blank" rel="noopener noreferrer">
-            <Download className="mr-2 h-4 w-4" />
-            Download File
-          </a>
-        </Button>
-      </div>
-    );
-  };
   
   // Handle real-time updates if enabled
   useEffect(() => {
@@ -515,7 +440,7 @@ export default function FileManager({ projectId, basePath = '', realtimeEnabled 
         ? `${fullCurrentPath}/${newFolderName}` 
         : `${basePath}/${newFolderName}`;
       
-      const { success, error } = await createFolder(folderPath || '');
+      const { success, error } = await createFolder(folderPath);
       
       if (error) throw error;
       
@@ -1256,7 +1181,7 @@ export default function FileManager({ projectId, basePath = '', realtimeEnabled 
             
             if (folderContents && folderContents.length > 0) {
               // Create the new folder
-              await createFolder(newPath || '');
+              await createFolder(newPath);
               
               // Move each file
               for (const file of folderContents) {
@@ -1282,28 +1207,28 @@ export default function FileManager({ projectId, basePath = '', realtimeEnabled 
               }
               
               // Delete the old folder
-              await deleteFile(oldPath || '', undefined, true);
+              await deleteFile(oldPath, undefined, true);
             } else {
               // Empty folder - just create new and delete old
-              await createFolder(newPath || '');
-              await deleteFile(oldPath || '', undefined, true);
+              await createFolder(newPath);
+              await deleteFile(oldPath, undefined, true);
             }
           } else {
             // For files
             const { data: fileData } = await supabaseClient.storage
               .from('production-files')
-              .download(oldPath || '');
+              .download(oldPath);
               
             if (fileData) {
               // Upload to new location
               await supabaseClient.storage
                 .from('production-files')
-                .upload(newPath || '', fileData, { upsert: true });
+                .upload(newPath, fileData, { upsert: true });
               
               // Delete old file
               await supabaseClient.storage
                 .from('production-files')
-                .remove([oldPath || '']);
+                .remove([oldPath]);
             }
           }
           break;
@@ -1315,7 +1240,7 @@ export default function FileManager({ projectId, basePath = '', realtimeEnabled 
           
           if (isFolder) {
             // For folders, similar to move operation
-            await createFolder(targetPath || '');
+            await createFolder(targetPath);
             
             // Process folder contents if available
             for (const item of lastRedoOperation.folderItems || []) {
@@ -1336,19 +1261,19 @@ export default function FileManager({ projectId, basePath = '', realtimeEnabled 
             }
             
             // Delete the source folder
-            await deleteFile(sourcePath || '', undefined, true);
+            await deleteFile(sourcePath, undefined, true);
           } else {
             // For files
             if (data) {
               // Upload to target location
               await supabaseClient.storage
                 .from('production-files')
-                .upload(targetPath || '', data, { upsert: true });
+                .upload(targetPath, data, { upsert: true });
               
               // Delete from source location
               await supabaseClient.storage
                 .from('production-files')
-                .remove([sourcePath || '']);
+                .remove([sourcePath]);
             }
           }
           break;
@@ -1499,7 +1424,6 @@ export default function FileManager({ projectId, basePath = '', realtimeEnabled 
   };
   
   // Function to handle selecting/unselecting an item for batch operations
-  const handleDropToRoot = async (e: React.DragEvent) => {
     e.stopPropagation();
     
     if (!draggedItem) {
@@ -1544,7 +1468,7 @@ export default function FileManager({ projectId, basePath = '', realtimeEnabled 
         
         if (folderContents && folderContents.length > 0) {
           // Create the target folder at root
-          await createFolder(targetPath || '');
+          await createFolder(targetPath);
           
           // Move each item to root
           for (const item of folderContents) {
@@ -1578,7 +1502,7 @@ export default function FileManager({ projectId, basePath = '', realtimeEnabled 
           await deleteFile(sourcePath, 'production-files', true);
         } else {
           // Empty folder
-          await createFolder(targetPath || '');
+          await createFolder(targetPath);
           await deleteFile(sourcePath, 'production-files', true);
         }
       } else {
@@ -2133,8 +2057,8 @@ export default function FileManager({ projectId, basePath = '', realtimeEnabled 
       {/* File list */}
       <div className="border rounded-lg bg-background">
         <div className="divide-y">
-          {items.length > 0 ? (
-            sortItems(items).map((item: FileItem | FolderItem) => renderFileItem(item))
+          {sortedItems.length > 0 ? (
+            sortedItems.map(item => renderFileItem(item))
           ) : (
             <div className="p-4 text-center text-muted-foreground">
               {loading ? 'Loading...' : 'No files or folders found.'}
@@ -2308,3 +2232,77 @@ export default function FileManager({ projectId, basePath = '', realtimeEnabled 
   );
 }
 
+const renderFilePreview = () => {
+  if (!selectedItem || !previewUrl) return null;
+  
+  const fileExtension = selectedItem.name.split('.').pop()?.toLowerCase();
+  
+  // Handle images
+  if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(fileExtension || '')) {
+    return (
+      <div className="flex items-center justify-center p-4 max-h-[70vh] overflow-hidden">
+        <img 
+          src={previewUrl} 
+          alt={selectedItem.name} 
+          className="max-w-full max-h-[70vh] object-contain" 
+        />
+      </div>
+    );
+  }
+  
+  // Handle video
+  if (['mp4', 'webm', 'ogg'].includes(fileExtension || '')) {
+    return (
+      <div className="p-4">
+        <video 
+          controls 
+          className="max-w-full max-h-[70vh]" 
+          src={previewUrl}
+        >
+          Your browser does not support the video tag.
+        </video>
+      </div>
+    );
+  }
+  
+  // Handle audio
+  if (['mp3', 'wav', 'ogg'].includes(fileExtension || '')) {
+    return (
+      <div className="p-4">
+        <audio 
+          controls 
+          className="w-full" 
+          src={previewUrl}
+        >
+          Your browser does not support the audio tag.
+        </audio>
+      </div>
+    );
+  }
+  
+  // Handle PDFs
+  if (fileExtension === 'pdf') {
+    return (
+      <div className="p-4 h-[70vh]">
+        <iframe 
+          src={previewUrl} 
+          className="w-full h-full"
+          title={selectedItem.name}
+        ></iframe>
+      </div>
+    );
+  }
+  
+  // For other files, show download link
+  return (
+    <div className="p-8 text-center">
+      <p className="mb-4">Preview not available for this file type.</p>
+      <Button asChild>
+        <a href={previewUrl} download={selectedItem.name} target="_blank" rel="noopener noreferrer">
+          <Download className="mr-2 h-4 w-4" />
+          Download File
+        </a>
+      </Button>
+    </div>
+  );
+};

@@ -26,7 +26,10 @@ import {
   CheckSquare,
   X,
   FolderClosed,
-  Trash
+  Trash,
+  FolderOpen,
+  ArrowDown,
+  Keyboard
 } from 'lucide-react';
 import { 
   ContextMenu,
@@ -53,7 +56,7 @@ import {
 import { supabaseClient } from '@/lib/supabaseClient';
 import { formatDistanceToNow } from 'date-fns';
 
-// Add this utility for delay - import it from the existing function in supabase-storage
+// Define the delay function locally
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 // Types for our file manager
@@ -115,7 +118,7 @@ const formatBytes = (bytes: number): string => {
   const i = Math.floor(Math.log(bytes) / Math.log(k));
   
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-};
+};  // End of component
 
 // Update the OperationHistoryItem (or Operation) type definition to include all needed fields
 type Operation = {
@@ -136,7 +139,7 @@ type Operation = {
   targetPath?: string;
   data?: Blob;
   folderItems?: Array<{name: string, data?: Blob}>;
-};
+};  // End of component
 
 export default function FileManager({ projectId, basePath = '', realtimeEnabled }: FileManagerProps): JSX.Element {
   const { toast } = useToast();
@@ -193,81 +196,6 @@ export default function FileManager({ projectId, basePath = '', realtimeEnabled 
   const [selectedItems, setSelectedItems] = useState<(FileItem | FolderItem)[]>([]);
   const [isMultiSelectMode, setIsMultiSelectMode] = useState(false);
   const [showBatchActionsMenu, setShowBatchActionsMenu] = useState(false);
-
-  const renderFilePreview = () => {
-    if (!selectedItem || !previewUrl) return null;
-    
-    const fileExtension = selectedItem.name.split('.').pop()?.toLowerCase();
-    
-    // Handle images
-    if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(fileExtension || '')) {
-      return (
-        <div className="flex items-center justify-center p-4 max-h-[70vh] overflow-hidden">
-          <img 
-            src={previewUrl} 
-            alt={selectedItem.name} 
-            className="max-w-full max-h-[70vh] object-contain" 
-          />
-        </div>
-      );
-    }
-    
-    // Handle video
-    if (['mp4', 'webm', 'ogg'].includes(fileExtension || '')) {
-      return (
-        <div className="p-4">
-          <video 
-            controls 
-            className="max-w-full max-h-[70vh]" 
-            src={previewUrl}
-          >
-            Your browser does not support the video tag.
-          </video>
-        </div>
-      );
-    }
-    
-    // Handle audio
-    if (['mp3', 'wav', 'ogg'].includes(fileExtension || '')) {
-      return (
-        <div className="p-4">
-          <audio 
-            controls 
-            className="w-full" 
-            src={previewUrl}
-          >
-            Your browser does not support the audio tag.
-          </audio>
-        </div>
-      );
-    }
-    
-    // Handle PDFs
-    if (fileExtension === 'pdf') {
-      return (
-        <div className="p-4 h-[70vh]">
-          <iframe 
-            src={previewUrl} 
-            className="w-full h-full"
-            title={selectedItem.name}
-          ></iframe>
-        </div>
-      );
-    }
-    
-    // For other files, show download link
-    return (
-      <div className="p-8 text-center">
-        <p className="mb-4">Preview not available for this file type.</p>
-        <Button asChild>
-          <a href={previewUrl} download={selectedItem.name} target="_blank" rel="noopener noreferrer">
-            <Download className="mr-2 h-4 w-4" />
-            Download File
-          </a>
-        </Button>
-      </div>
-    );
-  };
   
   // Handle real-time updates if enabled
   useEffect(() => {
@@ -305,7 +233,7 @@ export default function FileManager({ projectId, basePath = '', realtimeEnabled 
     // Clean up subscription on unmount
     return () => {
       supabaseClient.removeChannel(channel);
-    };
+    };  // End of component
   }, [projectId, realtimeEnabled]);
   
   // Load files whenever the path changes or refresh is triggered
@@ -351,7 +279,7 @@ export default function FileManager({ projectId, basePath = '', realtimeEnabled 
     });
     
     return [...sortedFolders, ...sortedFiles];
-  };
+  };  // End of component
   
   // Function to toggle sort
   const toggleSort = (field: SortField) => {
@@ -363,7 +291,7 @@ export default function FileManager({ projectId, basePath = '', realtimeEnabled 
       setSortField(field);
       setSortDirection('asc');
     }
-  };
+  };  // End of component
   
   // Function to load files for the current path
   const loadFiles = async () => {
@@ -407,7 +335,7 @@ export default function FileManager({ projectId, basePath = '', realtimeEnabled 
     } finally {
       setLoading(false);
     }
-  };
+  };  // End of component
   
   // Add effect to re-sort when sort options change
   useEffect(() => {
@@ -463,7 +391,7 @@ export default function FileManager({ projectId, basePath = '', realtimeEnabled 
                   ...folderItems.sort((a, b) => a.name.localeCompare(b.name)),
                   ...fileItems.sort((a, b) => a.name.localeCompare(b.name))
                 ]
-              };
+              };  // End of component
             }
             return item;
           });
@@ -477,13 +405,13 @@ export default function FileManager({ projectId, basePath = '', realtimeEnabled 
         });
       }
     }
-  };
+  };  // End of component
   
   // Function to navigate to root
   const navigateToRoot = () => {
     setCurrentPath('');
     setRefreshTrigger(prev => prev + 1);
-  };
+  };  // End of component
   
   // Function to navigate up one level
   const navigateUp = () => {
@@ -493,7 +421,7 @@ export default function FileManager({ projectId, basePath = '', realtimeEnabled 
     pathParts.pop();
     setCurrentPath(pathParts.join('/'));
     setRefreshTrigger(prev => prev + 1);
-  };
+  };  // End of component
   
   // Function to create a new folder - with loading
   const handleCreateFolder = async () => {
@@ -515,7 +443,7 @@ export default function FileManager({ projectId, basePath = '', realtimeEnabled 
         ? `${fullCurrentPath}/${newFolderName}` 
         : `${basePath}/${newFolderName}`;
       
-      const { success, error } = await createFolder(folderPath || '');
+      const { success, error } = await createFolder(folderPath);
       
       if (error) throw error;
       
@@ -548,7 +476,7 @@ export default function FileManager({ projectId, basePath = '', realtimeEnabled 
     } finally {
       setOperationLoading(false);
     }
-  };
+  };  // End of component
   
   // Helper function to cleanup empty subfolders that are created automatically
   const cleanupEmptySubfolders = async (folderPath: string) => {
@@ -582,7 +510,7 @@ export default function FileManager({ projectId, basePath = '', realtimeEnabled 
       console.warn('Error during empty subfolder cleanup:', e);
       // Don't throw, as this is just cleanup
     }
-  };
+  };  // End of component
   
   // Handle file upload completion
   const handleUploadComplete = () => {
@@ -592,7 +520,7 @@ export default function FileManager({ projectId, basePath = '', realtimeEnabled 
       title: 'Success',
       description: 'File uploaded successfully',
     });
-  };
+  };  // End of component
   
   // Function to delete a file or folder - with loading
   const handleDelete = async (item: FileItem | FolderItem) => {
@@ -675,7 +603,7 @@ export default function FileManager({ projectId, basePath = '', realtimeEnabled 
     } finally {
       setOperationLoading(false);
     }
-  };
+  };  // End of component
   
   // Helper function to recursively save folder structure
   const saveEntireFolderStructure = async (folderPath: string): Promise<Array<{path: string, data?: Blob}>> => {
@@ -718,7 +646,7 @@ export default function FileManager({ projectId, basePath = '', realtimeEnabled 
     }
     
     return contents;
-  };
+  };  // End of component
   
   // Function to handle clicking on a file
   const handleItemClick = (item: FileItem | FolderItem) => {
@@ -726,7 +654,7 @@ export default function FileManager({ projectId, basePath = '', realtimeEnabled 
     
     // No longer toggle folder expansion on single click
     // This makes single click only select the item
-  };
+  };  // End of component
   
   // Function to handle double-clicking an item
   const handleItemDoubleClick = async (item: FileItem | FolderItem) => {
@@ -766,7 +694,7 @@ export default function FileManager({ projectId, basePath = '', realtimeEnabled 
         variant: 'destructive',
       });
     }
-  };
+  };  // End of component
   
   // Function to get icon based on file extension
   const getFileIcon = (file: FileItem | FolderItem) => {
@@ -801,7 +729,7 @@ export default function FileManager({ projectId, basePath = '', realtimeEnabled 
       default:
         return <FileIcon className="h-4 w-4 text-gray-500" />;
     }
-  };
+  };  // End of component
   
   // Handle drag start
   const handleDragStart = (e: DragEvent<HTMLDivElement>, item: FileItem | FolderItem) => {
@@ -828,7 +756,7 @@ export default function FileManager({ projectId, basePath = '', realtimeEnabled 
     setTimeout(() => {
       document.body.removeChild(dragIcon);
     }, 0);
-  };
+  };  // End of component
   
   // Handle drag over
   const handleDragOver = (e: DragEvent<HTMLDivElement>, item?: FolderItem) => {
@@ -839,14 +767,14 @@ export default function FileManager({ projectId, basePath = '', realtimeEnabled 
       setDragOverFolder(item.path);
       e.dataTransfer.dropEffect = 'move';
     }
-  };
+  };  // End of component
   
   // Handle drag leave
   const handleDragLeave = (e: DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.stopPropagation();
     setDragOverFolder(null);
-  };
+  };  // End of component
   
   // Handle drop
   const handleDrop = async (e: DragEvent<HTMLDivElement>, targetFolder?: FolderItem) => {
@@ -909,7 +837,7 @@ export default function FileManager({ projectId, basePath = '', realtimeEnabled 
         variant: 'destructive',
       });
     }
-  };
+  };  // End of component
   
   // Render breadcrumbs
   const renderBreadcrumbs = () => {
@@ -960,14 +888,14 @@ export default function FileManager({ projectId, basePath = '', realtimeEnabled 
         {breadcrumbs}
       </div>
     );
-  };
+  };  // End of component
   
   // Function to handle renaming a file or folder
   const handleRename = async (item: FileItem | FolderItem) => {
     setItemToRename(item);
     setNewName(item.name);
     setIsRenaming(true);
-  };
+  };  // End of component
   
   // Function to submit the rename - with loading
   const submitRename = async () => {
@@ -1041,7 +969,7 @@ export default function FileManager({ projectId, basePath = '', realtimeEnabled 
     } finally {
       setOperationLoading(false);
     }
-  };
+  };  // End of component
   
   // Function to open the move file dialog
   const handleMoveToClick = async (item: FileItem | FolderItem) => {
@@ -1060,7 +988,7 @@ export default function FileManager({ projectId, basePath = '', realtimeEnabled 
         variant: 'destructive',
       });
     }
-  };
+  };  // End of component
   
   // Function to load folder structure for the move dialog
   const loadFolderStructure = async () => {
@@ -1071,7 +999,7 @@ export default function FileManager({ projectId, basePath = '', realtimeEnabled 
       console.error('Error loading folder structure:', error);
       throw error;
     }
-  };
+  };  // End of component
   
   // Recursively fetch folders
   const fetchFoldersRecursively = async (path: string): Promise<FolderItem[]> => {
@@ -1092,7 +1020,7 @@ export default function FileManager({ projectId, basePath = '', realtimeEnabled 
     }));
     
     return formattedFolders;
-  };
+  };  // End of component
   
   // Function to perform the move - with loading
   const handleMoveTo = async () => {
@@ -1140,7 +1068,7 @@ export default function FileManager({ projectId, basePath = '', realtimeEnabled 
         sourcePath,
         targetPath,
         isFolder
-      };
+      };  // End of component
       
       setOperationHistory(prev => [newOperation, ...prev]);
       setRedoHistory([]); // Clear redo history on new operation
@@ -1174,7 +1102,7 @@ export default function FileManager({ projectId, basePath = '', realtimeEnabled 
     } finally {
       setOperationLoading(false);
     }
-  };
+  };  // End of component
   
   // Render destination folder structure
   const renderFolderOption = (folder: FolderItem, level = 0) => {
@@ -1194,7 +1122,7 @@ export default function FileManager({ projectId, basePath = '', realtimeEnabled 
         </div>
       </div>
     );
-  };
+  };  // End of component
   
   // Implement the undo functionality
   const handleUndo = async () => {
@@ -1221,14 +1149,14 @@ export default function FileManager({ projectId, basePath = '', realtimeEnabled 
     } finally {
       setOperationLoading(false);
     }
-  };
+  };  // End of component
   
   // Function to redo the last undone operation
   const handleRedo = async () => {
     if (redoHistory.length === 0) return;
     
     setOperationLoading(true);
-    setLoadingMessage('Redoing operation...');
+    setLoadingMessage("Redoing last operation...");
     
     // Get the last operation from redo history
     const lastRedoOperation = redoHistory[redoHistory.length - 1];
@@ -1256,7 +1184,7 @@ export default function FileManager({ projectId, basePath = '', realtimeEnabled 
             
             if (folderContents && folderContents.length > 0) {
               // Create the new folder
-              await createFolder(newPath || '');
+              await createFolder(newPath);
               
               // Move each file
               for (const file of folderContents) {
@@ -1282,28 +1210,28 @@ export default function FileManager({ projectId, basePath = '', realtimeEnabled 
               }
               
               // Delete the old folder
-              await deleteFile(oldPath || '', undefined, true);
+              await deleteFile(oldPath, undefined, true);
             } else {
               // Empty folder - just create new and delete old
-              await createFolder(newPath || '');
-              await deleteFile(oldPath || '', undefined, true);
+              await createFolder(newPath);
+              await deleteFile(oldPath, undefined, true);
             }
           } else {
             // For files
             const { data: fileData } = await supabaseClient.storage
               .from('production-files')
-              .download(oldPath || '');
+              .download(oldPath);
               
             if (fileData) {
               // Upload to new location
               await supabaseClient.storage
                 .from('production-files')
-                .upload(newPath || '', fileData, { upsert: true });
+                .upload(newPath, fileData, { upsert: true });
               
               // Delete old file
               await supabaseClient.storage
                 .from('production-files')
-                .remove([oldPath || '']);
+                .remove([oldPath]);
             }
           }
           break;
@@ -1315,7 +1243,7 @@ export default function FileManager({ projectId, basePath = '', realtimeEnabled 
           
           if (isFolder) {
             // For folders, similar to move operation
-            await createFolder(targetPath || '');
+            await createFolder(targetPath);
             
             // Process folder contents if available
             for (const item of lastRedoOperation.folderItems || []) {
@@ -1336,19 +1264,19 @@ export default function FileManager({ projectId, basePath = '', realtimeEnabled 
             }
             
             // Delete the source folder
-            await deleteFile(sourcePath || '', undefined, true);
+            await deleteFile(sourcePath, undefined, true);
           } else {
             // For files
             if (data) {
               // Upload to target location
               await supabaseClient.storage
                 .from('production-files')
-                .upload(targetPath || '', data, { upsert: true });
+                .upload(targetPath, data, { upsert: true });
               
               // Delete from source location
               await supabaseClient.storage
                 .from('production-files')
-                .remove([sourcePath || '']);
+                .remove([sourcePath]);
             }
           }
           break;
@@ -1375,7 +1303,7 @@ export default function FileManager({ projectId, basePath = '', realtimeEnabled 
     } finally {
       setOperationLoading(false);
     }
-  };
+  };  // End of component
   
   // Update the handleKeyDown function
   useEffect(() => {
@@ -1456,12 +1384,12 @@ export default function FileManager({ projectId, basePath = '', realtimeEnabled 
           setSelectedItem(visibleItems[0]);
         }
       }
-    };
+    };  // End of component
     
     window.addEventListener('keydown', handleKeyDown);
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
-    };
+    };  // End of component
   }, [
     selectedItem, 
     currentPath, 
@@ -1490,16 +1418,15 @@ export default function FileManager({ projectId, basePath = '', realtimeEnabled 
           addVisibleItems(item.children, level + 1);
         }
       });
-    };
+    };  // End of component
     
     // Start with the top-level items
     addVisibleItems(items);
     
     return visibleItems;
-  };
+  };  // End of component
   
   // Function to handle selecting/unselecting an item for batch operations
-  const handleDropToRoot = async (e: React.DragEvent) => {
     e.stopPropagation();
     
     if (!draggedItem) {
@@ -1544,7 +1471,7 @@ export default function FileManager({ projectId, basePath = '', realtimeEnabled 
         
         if (folderContents && folderContents.length > 0) {
           // Create the target folder at root
-          await createFolder(targetPath || '');
+          await createFolder(targetPath);
           
           // Move each item to root
           for (const item of folderContents) {
@@ -1578,7 +1505,7 @@ export default function FileManager({ projectId, basePath = '', realtimeEnabled 
           await deleteFile(sourcePath, 'production-files', true);
         } else {
           // Empty folder
-          await createFolder(targetPath || '');
+          await createFolder(targetPath);
           await deleteFile(sourcePath, 'production-files', true);
         }
       } else {
@@ -1626,7 +1553,7 @@ export default function FileManager({ projectId, basePath = '', realtimeEnabled 
     } finally {
       setDraggedItem(null);
     }
-  };
+  };  // End of component
   
   // Enhance the rename dialog with Enter key support
   useEffect(() => {
@@ -1635,7 +1562,7 @@ export default function FileManager({ projectId, basePath = '', realtimeEnabled 
         e.preventDefault();
         submitRename();
       }
-    };
+    };  // End of component
     
     window.addEventListener('keydown', handleRenameKeyDown);
     return () => window.removeEventListener('keydown', handleRenameKeyDown);
@@ -1648,7 +1575,7 @@ export default function FileManager({ projectId, basePath = '', realtimeEnabled 
         e.preventDefault();
         handleMoveTo();
       }
-    };
+    };  // End of component
     
     window.addEventListener('keydown', handleMoveKeyDown);
     return () => window.removeEventListener('keydown', handleMoveKeyDown);
@@ -1661,7 +1588,7 @@ export default function FileManager({ projectId, basePath = '', realtimeEnabled 
         e.preventDefault();
         handleCreateFolder();
       }
-    };
+    };  // End of component
     
     window.addEventListener('keydown', handleCreateFolderKeyDown);
     return () => window.removeEventListener('keydown', handleCreateFolderKeyDown);
@@ -1683,7 +1610,7 @@ export default function FileManager({ projectId, basePath = '', realtimeEnabled 
     if (!isMultiSelectMode) {
       setIsMultiSelectMode(true);
     }
-  };
+  };  // End of component
   
   // Function to toggle multi-select mode
   const toggleMultiSelectMode = () => {
@@ -1695,17 +1622,17 @@ export default function FileManager({ projectId, basePath = '', realtimeEnabled 
       // Enter multi-select mode
       setIsMultiSelectMode(true);
     }
-  };
+  };  // End of component
   
   // Function to select all visible items
   const selectAllItems = () => {
     setSelectedItems(items);
-  };
+  };  // End of component
   
   // Function to clear all selections
   const clearSelection = () => {
     setSelectedItems([]);
-  };
+  };  // End of component
   
   // Enhanced delete function to handle multiple items
   const handleBatchDelete = async () => {
@@ -1797,7 +1724,7 @@ export default function FileManager({ projectId, basePath = '', realtimeEnabled 
     } finally {
       setOperationLoading(false);
     }
-  };
+  };  // End of component
   
   // Function to move multiple items
   const handleBatchMoveClick = () => {
@@ -1807,7 +1734,7 @@ export default function FileManager({ projectId, basePath = '', realtimeEnabled 
     // We'll handle the batch operation in handleMoveTo
     setItemToMove(selectedItems[0]);
     setShowMoveToDialog(true);
-  };
+  };  // End of component
   
   // Update renderFileItem to include checkboxes and preserve context menu
   const renderFileItem = (item: FileItem | FolderItem, level = 0, parentPath = '') => {
@@ -1977,176 +1904,242 @@ export default function FileManager({ projectId, basePath = '', realtimeEnabled 
         )}
       </div>
     );
-  };
+  };  // End of component
   
   // Update the return JSX to add batch selection UI controls
   return (
-    <div>
-      {/* Ensure loading overlay is above dialogs with higher z-index */}
-      {operationLoading && (
-        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center z-[100]">
-          <div className="bg-card p-6 rounded-lg shadow-lg max-w-md w-full border">
-            <div className="flex flex-col items-center space-y-4">
-              <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-primary"></div>
-              <p className="text-center text-muted-foreground">{loadingMessage}</p>
-            </div>
-          </div>
-        </div>
-      )}
+    <div className="relative flex flex-col h-full border rounded-md overflow-hidden">
+      {operationLoading && <LoadingOverlay message={loadingMessage} />}
       
-      {/* Header with actions */}
-      <div className="flex justify-between items-center mb-4">
-        <div className="flex space-x-2">
-          <Button 
-            variant="outline" 
-            size="sm" 
+      {/* Top toolbar */}
+      <div className="flex flex-wrap items-center gap-2 p-2 border-b bg-card">
+        <div className="flex items-center mr-auto">
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={navigateToRoot}
+            title="Home"
           >
-            <Home className="h-4 w-4 mr-1" />
-            Root
+            <Home className="h-4 w-4" />
           </Button>
-          
-          {currentPath && (
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={navigateUp}
-            >
-              <ArrowUp className="h-4 w-4 mr-1" />
-              Up
-            </Button>
-          )}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={navigateUp}
+            disabled={currentPath === ''}
+            title="Up one level"
+          >
+            <ArrowUp className="h-4 w-4" />
+          </Button>
         </div>
         
-        <div className="flex space-x-2">
-          {/* Add multi-select toggle button */}
-          <Button 
+        <div className="flex items-center gap-2">
+          {/* Multi-select toggle */}
+          <Button
             variant={isMultiSelectMode ? "secondary" : "outline"}
-            size="sm" 
+            size="sm"
             onClick={toggleMultiSelectMode}
-            className={isMultiSelectMode ? "border-primary" : ""}
+            title={isMultiSelectMode ? "Exit multi-select" : "Enter multi-select"}
           >
             <CheckSquare className="h-4 w-4 mr-1" />
-            {isMultiSelectMode ? "Exit Selection" : "Select"}
+            {isMultiSelectMode ? "Exit select" : "Select"}
           </Button>
           
-          <TooltipProvider>
-            <Tooltip open={showShortcutsTooltip} onOpenChange={setShowShortcutsTooltip}>
-              <TooltipTrigger asChild>
-                <Button 
-                  variant="ghost" 
-                  size="icon"
-                  className="h-8 w-8"
-                  onClick={() => setShowShortcutsTooltip(!showShortcutsTooltip)}
-                >
-                  <span className="sr-only">Keyboard shortcuts</span>
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-keyboard"><rect x="2" y="4" width="20" height="16" rx="2" ry="2"/><path d="M6 8h.001"/><path d="M10 8h.001"/><path d="M14 8h.001"/><path d="M18 8h.001"/><path d="M8 12h.001"/><path d="M12 12h.001"/><path d="M16 12h.001"/><path d="M7 16h10"/></svg>
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom" align="end" className="p-0 w-80">
-                <div className="text-sm p-4 space-y-2">
-                  <h4 className="font-medium">Keyboard Shortcuts</h4>
-                  <div className="space-y-1">
-                    <div className="flex justify-between">
-                      <span>⌘/Ctrl + Z</span>
-                      <span className="text-muted-foreground">Undo</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>⇧ + ⌘/Ctrl + Z</span>
-                      <span className="text-muted-foreground">Redo</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>⌘/Ctrl + ↓</span>
-                      <span className="text-muted-foreground">Navigate into folder</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>⌘/Ctrl + ↑</span>
-                      <span className="text-muted-foreground">Navigate up</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>F2</span>
-                      <span className="text-muted-foreground">Rename selected</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Delete</span>
-                      <span className="text-muted-foreground">Delete selected</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Enter</span>
-                      <span className="text-muted-foreground">Open selected</span>
-                    </div>
-                  </div>
-                </div>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-          
-          <Button 
-            variant="outline" 
-            size="sm" 
+          <Button
+            variant="outline"
+            size="sm"
             onClick={() => setShowNewFolderDialog(true)}
+            title="New folder"
           >
-            <Plus className="h-4 w-4 mr-1" />
+            <Folder className="h-4 w-4 mr-1" />
             New Folder
           </Button>
           
-          <Button 
-            size="sm" 
+          <Button
+            variant="outline"
+            size="sm"
             onClick={() => setShowUploadDialog(true)}
+            title="Upload file"
           >
             <Upload className="h-4 w-4 mr-1" />
             Upload
           </Button>
+          
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+              >
+                <Keyboard className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent className="text-xs max-w-xs">
+              <p className="font-semibold">Keyboard shortcuts:</p>
+              <p>⌘/Ctrl + Z: Undo</p>
+              <p>⇧ + ⌘/Ctrl + Z: Redo</p>
+              <p>←: Navigate up</p>
+              <p>F2: Rename selected</p>
+              <p>Delete: Delete selected</p>
+              <p>Enter: Open selected</p>
+            </TooltipContent>
+          </Tooltip>
         </div>
       </div>
       
-      {/* Show action bar when in multi-select mode */}
-      {isMultiSelectMode && (
-        <div className="flex justify-between items-center mb-2 px-2 py-1 bg-accent/20 rounded-lg">
-          <div className="flex items-center space-x-4">
-            <span className="text-sm font-medium">
-              {selectedItems.length} selected
-            </span>
-            <Button size="sm" variant="ghost" onClick={selectAllItems}>
-              Select All
-            </Button>
-            <Button size="sm" variant="ghost" onClick={clearSelection}>
-              Clear
-            </Button>
-          </div>
-          <div className="flex space-x-2">
-            <Button size="sm" variant="outline" onClick={handleBatchMoveClick} disabled={selectedItems.length === 0}>
-              <FolderUp className="h-4 w-4 mr-1" />
-              Move
-            </Button>
-            <Button size="sm" variant="destructive" onClick={handleBatchDelete} disabled={selectedItems.length === 0}>
-              <Trash2 className="h-4 w-4 mr-1" />
-              Delete
-            </Button>
-          </div>
+      {/* Breadcrumbs */}
+      <div className="flex items-center px-2 py-1 border-b overflow-x-auto scrollbar-thin">
+        {renderBreadcrumbs()}
+      </div>
+      
+      {/* Batch actions menu that appears when items are selected */}
+      {isMultiSelectMode && selectedItems.length > 0 && (
+        <div className="fixed bottom-4 right-4 z-10 flex items-center gap-2 bg-primary text-primary-foreground shadow-lg rounded-lg p-2">
+          <span className="text-sm font-medium mr-2">{selectedItems.length} selected</span>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={clearSelection}
+            title="Clear selection"
+          >
+            <X className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={handleBatchMoveClick}
+            title="Move selected items"
+          >
+            <FolderUp className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={handleBatchDelete}
+            title="Delete selected items"
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
         </div>
       )}
       
-      {/* Current path breadcrumbs */}
-      {renderBreadcrumbs()}
-      
       {/* File list */}
-      <div className="border rounded-lg bg-background">
-        <div className="divide-y">
-          {items.length > 0 ? (
-            sortItems(items).map((item: FileItem | FolderItem) => renderFileItem(item))
-          ) : (
-            <div className="p-4 text-center text-muted-foreground">
-              {loading ? 'Loading...' : 'No files or folders found.'}
+      <div 
+        className="flex-1 overflow-auto scrollbar-thin"
+        onDrop={(e) => handleDrop(e)}
+        onDragOver={(e) => handleDragOver(e)}
+        onDragLeave={(e) => handleDragLeave(e)}
+        data-testid="file-drop-zone"
+      >
+        <div className="min-h-full">
+          {/* Sort header */}
+          <div className="flex items-center px-2 py-1 border-b bg-muted/40 text-xs font-medium">
+            <div className="flex-1 flex items-center">
+              <button 
+                onClick={() => toggleSort('name')}
+                className={`flex items-center ${sortField === 'name' ? 'text-primary' : ''}`}
+              >
+                Name
+                {sortField === 'name' && (
+                  sortDirection === 'asc' ? 
+                    <ArrowUp className="ml-1 h-3 w-3" /> : 
+                    <ArrowDown className="ml-1 h-3 w-3" />
+                )}
+              </button>
             </div>
+            <div className="w-24 text-right hidden sm:block">
+              <button 
+                onClick={() => toggleSort('updated')}
+                className={`flex items-center justify-end ${sortField === 'updated' ? 'text-primary' : ''}`}
+              >
+                Modified
+                {sortField === 'updated' && (
+                  sortDirection === 'asc' ? 
+                    <ArrowUp className="ml-1 h-3 w-3" /> : 
+                    <ArrowDown className="ml-1 h-3 w-3" />
+                )}
+              </button>
+            </div>
+            <div className="w-20 text-right hidden sm:block">
+              <button 
+                onClick={() => toggleSort('size')}
+                className={`flex items-center justify-end ${sortField === 'size' ? 'text-primary' : ''}`}
+              >
+                Size
+                {sortField === 'size' && (
+                  sortDirection === 'asc' ? 
+                    <ArrowUp className="ml-1 h-3 w-3" /> : 
+                    <ArrowDown className="ml-1 h-3 w-3" />
+                )}
+              </button>
+            </div>
+            <div className="w-8"></div>
+          </div>
+          
+          {loading ? (
+            <div className="p-4 flex items-center justify-center">
+              <div className="h-6 w-6 animate-spin rounded-full border-b-2 border-primary"></div>
+            </div>
+          ) : items.length === 0 ? (
+            <div className="p-8 text-center text-muted-foreground">
+              <FolderOpen className="h-12 w-12 mx-auto opacity-20 mb-2" />
+              <p>This folder is empty</p>
+              <p className="text-sm mt-1">
+                Upload files or create a new folder to get started
+              </p>
+            </div>
+          ) : (
+            <div className="relative">
+              {items.map(item => renderFileItem(item))}
+            </div>
+          )}
+          
+          {/* Drop target indicator */}
+          {isDropping && (
+            <div 
+              className="absolute inset-0 bg-primary/10 border-2 border-dashed border-primary rounded-sm pointer-events-none"
+              style={{ zIndex: 10 }}
+            ></div>
           )}
         </div>
       </div>
       
-      {/* New Folder Dialog with keyboard support */}
+      {/* Preview dialog */}
+      <Dialog open={!!selectedItem && !!previewUrl} onOpenChange={val => {
+        if (!val) {
+          setSelectedItem(null);
+          setPreviewUrl(null);
+        }
+      }}>
+        <DialogContent className="max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>{selectedItem?.name}</DialogTitle>
+          </DialogHeader>
+          {renderFilePreview()}
+        </DialogContent>
+      </Dialog>
+      
+      {/* Upload dialog */}
+      <Dialog open={showUploadDialog} onOpenChange={setShowUploadDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Upload Files</DialogTitle>
+            <DialogDescription>
+              Upload files to the current folder
+            </DialogDescription>
+          </DialogHeader>
+          <FileUpload
+            projectId={projectId}
+            folderPath={basePath ? `${basePath}/${currentPath}` : currentPath}
+            onUploadComplete={handleUploadComplete}
+          />
+        </DialogContent>
+      </Dialog>
+      
+      {/* Create folder dialog with keyboard support */}
       <Dialog open={showNewFolderDialog} onOpenChange={setShowNewFolderDialog}>
-        <DialogContent 
-          className="sm:max-w-md"
+        <DialogContent
           onKeyDown={(e) => {
             if (e.key === 'Enter' && newFolderName.trim()) {
               e.preventDefault();
@@ -2159,7 +2152,7 @@ export default function FileManager({ projectId, basePath = '', realtimeEnabled 
           </DialogHeader>
           <div className="py-4">
             <div className="space-y-2">
-              <Label htmlFor="folderName">Folder Name</Label>
+              <Label htmlFor="folderName">Folder name</Label>
               <Input 
                 id="folderName" 
                 value={newFolderName} 
@@ -2173,8 +2166,8 @@ export default function FileManager({ projectId, basePath = '', realtimeEnabled 
             <Button 
               variant="outline" 
               onClick={() => {
-                setNewFolderName('');
                 setShowNewFolderDialog(false);
+                setNewFolderName('');
               }}
             >
               Cancel
@@ -2184,39 +2177,11 @@ export default function FileManager({ projectId, basePath = '', realtimeEnabled 
         </DialogContent>
       </Dialog>
       
-      {/* Upload Dialog */}
-      <Dialog open={showUploadDialog} onOpenChange={setShowUploadDialog}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Upload File</DialogTitle>
-          </DialogHeader>
-          <div className="py-4">
-            <FileUpload 
-              projectId={projectId} 
-              onUploadComplete={handleUploadComplete} 
-            />
-          </div>
-        </DialogContent>
-      </Dialog>
-      
-      {/* File Preview Dialog */}
-      <Dialog open={showPreviewDialog} onOpenChange={setShowPreviewDialog}>
-        <DialogContent className="sm:max-w-4xl p-0 bg-black/5 backdrop-blur-xl border border-white/20">
-          <DialogHeader className="p-4 bg-background/80 backdrop-blur-md">
-            <DialogTitle>{selectedItem?.name}</DialogTitle>
-          </DialogHeader>
-          <div className="bg-white dark:bg-black">
-            {renderFilePreview()}
-          </div>
-        </DialogContent>
-      </Dialog>
-      
-      {/* Rename Dialog with keyboard support */}
-      <Dialog open={isRenaming} onOpenChange={(open) => !open && setIsRenaming(false)}>
-        <DialogContent 
-          className="sm:max-w-md"
+      {/* Rename dialog with keyboard support */}
+      <Dialog open={isRenaming} onOpenChange={setIsRenaming}>
+        <DialogContent
           onKeyDown={(e) => {
-            if (e.key === 'Enter' && newName.trim() && newName !== itemToRename?.name) {
+            if (e.key === 'Enter' && newName.trim()) {
               e.preventDefault();
               submitRename();
             }
@@ -2254,9 +2219,8 @@ export default function FileManager({ projectId, basePath = '', realtimeEnabled 
       </Dialog>
       
       {/* Move To Dialog with keyboard support */}
-      <Dialog open={showMoveToDialog} onOpenChange={(open) => !open && setShowMoveToDialog(false)}>
-        <DialogContent 
-          className="sm:max-w-md"
+      <Dialog open={showMoveToDialog} onOpenChange={setShowMoveToDialog}>
+        <DialogContent
           onKeyDown={(e) => {
             if (e.key === 'Enter' && selectedDestination) {
               e.preventDefault();
@@ -2265,22 +2229,20 @@ export default function FileManager({ projectId, basePath = '', realtimeEnabled 
           }}
         >
           <DialogHeader>
-            <DialogTitle>Move {itemToMove?.name}</DialogTitle>
+            <DialogTitle>Move {itemToMove && ('children' in itemToMove ? 'Folder' : 'File')}</DialogTitle>
             <DialogDescription>
-              Select destination folder
+              Select a destination folder
             </DialogDescription>
           </DialogHeader>
-          <div className="py-4">
-            <div className="border rounded-lg bg-background max-h-[40vh] overflow-y-auto">
-              <div 
-                className={`flex items-center px-2 py-1 rounded-sm cursor-pointer ${
-                  selectedDestination === 'root' ? 'bg-accent text-accent-foreground' : 'hover:bg-accent/50'
-                }`}
-                onClick={() => setSelectedDestination('root')}
+          <div className="py-4 h-[300px] overflow-y-auto">
+            <div className="space-y-1">
+              <button 
+                className={`w-full text-left py-1.5 px-2 rounded-sm flex items-center ${selectedDestination === '' ? 'bg-accent text-accent-foreground' : 'hover:bg-accent/40'}`}
+                onClick={() => setSelectedDestination('')}
               >
-                <Home className="h-4 w-4 text-muted-foreground mr-2" />
+                <Home className="h-4 w-4 mr-2" />
                 <span>Root</span>
-              </div>
+              </button>
               {folderStructure.map(folder => renderFolderOption(folder))}
             </div>
           </div>
@@ -2290,17 +2252,12 @@ export default function FileManager({ projectId, basePath = '', realtimeEnabled 
               onClick={() => {
                 setShowMoveToDialog(false);
                 setItemToMove(null);
-                setSelectedDestination('');
+                setSelectedDestination(null);
               }}
             >
               Cancel
             </Button>
-            <Button 
-              onClick={handleMoveTo}
-              disabled={!selectedDestination}
-            >
-              Move
-            </Button>
+            <Button onClick={handleMoveTo} disabled={selectedDestination === null}>Move</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -2308,3 +2265,77 @@ export default function FileManager({ projectId, basePath = '', realtimeEnabled 
   );
 }
 
+const renderFilePreview = () => {
+  if (!selectedItem || !previewUrl) return null;
+  
+  const fileExtension = selectedItem.name.split('.').pop()?.toLowerCase();
+  
+  // Handle images
+  if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(fileExtension || '')) {
+    return (
+      <div className="flex items-center justify-center p-4 max-h-[70vh] overflow-hidden">
+        <img 
+          src={previewUrl} 
+          alt={selectedItem.name} 
+          className="max-w-full max-h-[70vh] object-contain" 
+        />
+      </div>
+    );
+  }
+  
+  // Handle video
+  if (['mp4', 'webm', 'ogg', 'mov'].includes(fileExtension || '')) {
+    return (
+      <div className="p-4">
+        <video 
+          controls 
+          className="max-w-full max-h-[70vh]" 
+          src={previewUrl}
+        >
+          Your browser does not support the video tag.
+        </video>
+      </div>
+    );
+  }
+  
+  // Handle audio
+  if (['mp3', 'wav', 'ogg', 'flac'].includes(fileExtension || '')) {
+    return (
+      <div className="p-4">
+        <audio 
+          controls 
+          className="w-full" 
+          src={previewUrl}
+        >
+          Your browser does not support the audio tag.
+        </audio>
+      </div>
+    );
+  }
+  
+  // Handle PDFs
+  if (fileExtension === 'pdf') {
+    return (
+      <div className="p-4 h-[70vh]">
+        <iframe 
+          src={previewUrl} 
+          className="w-full h-full"
+          title={selectedItem.name}
+        ></iframe>
+      </div>
+    );
+  }
+  
+  // For other file types, show a download button
+  return (
+    <div className="flex flex-col items-center justify-center p-8">
+      <p className="mb-4">Preview not available for this file type.</p>
+      <Button asChild>
+        <a href={previewUrl} download={selectedItem.name} target="_blank" rel="noopener noreferrer">
+          <Download className="mr-2 h-4 w-4" />
+          Download File
+        </a>
+      </Button>
+    </div>
+  );
+};

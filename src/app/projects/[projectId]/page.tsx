@@ -51,7 +51,7 @@ export default function ProjectOverview() {
         const { data: tasksData, error: tasksError } = await supabaseClient
           .from('tasks')
           .select('id, status')
-          .eq('project_id', parseInt(projectId));
+          .eq('project_id', projectId);
         
         const taskCount = tasksData?.length || 0;
         const pendingTasks = tasksData?.filter(task => 
