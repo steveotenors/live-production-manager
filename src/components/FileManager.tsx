@@ -920,15 +920,15 @@ export default function FileManager({ projectId, basePath = '', realtimeEnabled 
     
     // Add root
     breadcrumbs.push(
-      <Button 
+          <Button 
         key="root" 
         variant="ghost" 
-        size="sm" 
+            size="sm" 
         className="h-8 px-2"
-        onClick={navigateToRoot}
-      >
-        Root
-      </Button>
+            onClick={navigateToRoot} 
+          >
+            Root
+          </Button>
     );
     
     // Add path parts
@@ -940,10 +940,10 @@ export default function FileManager({ projectId, basePath = '', realtimeEnabled 
       const pathForNavigation = currentPathBuild;
       
       breadcrumbs.push(
-        <Button 
+          <Button 
           key={pathForNavigation} 
           variant="ghost" 
-          size="sm"
+            size="sm" 
           className="h-8 px-2"
           onClick={() => {
             setCurrentPath(pathForNavigation);
@@ -951,7 +951,7 @@ export default function FileManager({ projectId, basePath = '', realtimeEnabled 
           }}
         >
           {part}
-        </Button>
+          </Button>
       );
     });
     
@@ -1893,7 +1893,7 @@ export default function FileManager({ projectId, basePath = '', realtimeEnabled 
                       handleItemDoubleClick(item);
                     }}>
                       <Eye className="h-3.5 w-3.5" />
-                    </Button>
+                </Button>
                   )}
                   <Button variant="ghost" size="icon" className="h-6 w-6" onClick={(e) => {
                     e.stopPropagation();
@@ -1901,8 +1901,8 @@ export default function FileManager({ projectId, basePath = '', realtimeEnabled 
                   }}>
                     <Edit className="h-3.5 w-3.5" />
                   </Button>
-                </div>
-              </div>
+          </div>
+        </div>
             </div>
           </ContextMenuTrigger>
           
@@ -2007,17 +2007,17 @@ export default function FileManager({ projectId, basePath = '', realtimeEnabled 
           </Button>
           
           {currentPath && (
-            <Button 
+          <Button 
               variant="outline" 
-              size="sm" 
+            size="sm" 
               onClick={navigateUp}
-            >
+          >
               <ArrowUp className="h-4 w-4 mr-1" />
               Up
-            </Button>
+          </Button>
           )}
-        </div>
-        
+      </div>
+      
         <div className="flex space-x-2">
           {/* Add multi-select toggle button */}
           <Button 
@@ -2050,11 +2050,11 @@ export default function FileManager({ projectId, basePath = '', realtimeEnabled 
                     <div className="flex justify-between">
                       <span>⌘/Ctrl + Z</span>
                       <span className="text-muted-foreground">Undo</span>
-                    </div>
+                </div>
                     <div className="flex justify-between">
                       <span>⇧ + ⌘/Ctrl + Z</span>
                       <span className="text-muted-foreground">Redo</span>
-                    </div>
+              </div>
                     <div className="flex justify-between">
                       <span>⌘/Ctrl + ↓</span>
                       <span className="text-muted-foreground">Navigate into folder</span>
@@ -2081,20 +2081,20 @@ export default function FileManager({ projectId, basePath = '', realtimeEnabled 
             </Tooltip>
           </TooltipProvider>
           
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={() => setShowNewFolderDialog(true)}
-          >
-            <Plus className="h-4 w-4 mr-1" />
-            New Folder
-          </Button>
-          
-          <Button 
-            size="sm" 
-            onClick={() => setShowUploadDialog(true)}
-          >
-            <Upload className="h-4 w-4 mr-1" />
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => setShowNewFolderDialog(true)}
+              >
+                <Plus className="h-4 w-4 mr-1" />
+                New Folder
+              </Button>
+              
+              <Button 
+                size="sm" 
+                onClick={() => setShowUploadDialog(true)}
+              >
+                <Upload className="h-4 w-4 mr-1" />
             Upload
           </Button>
         </div>
@@ -2122,10 +2122,10 @@ export default function FileManager({ projectId, basePath = '', realtimeEnabled 
             <Button size="sm" variant="destructive" onClick={handleBatchDelete} disabled={selectedItems.length === 0}>
               <Trash2 className="h-4 w-4 mr-1" />
               Delete
-            </Button>
+              </Button>
+            </div>
           </div>
-        </div>
-      )}
+        )}
       
       {/* Current path breadcrumbs */}
       {renderBreadcrumbs()}
@@ -2191,11 +2191,11 @@ export default function FileManager({ projectId, basePath = '', realtimeEnabled 
             <DialogTitle>Upload File</DialogTitle>
           </DialogHeader>
           <div className="py-4">
-            <FileUpload 
-              projectId={projectId} 
-              onUploadComplete={handleUploadComplete} 
-            />
-          </div>
+                <FileUpload 
+                  projectId={projectId} 
+                  onUploadComplete={handleUploadComplete} 
+                />
+                </div>
         </DialogContent>
       </Dialog>
       
@@ -2306,5 +2306,5 @@ export default function FileManager({ projectId, basePath = '', realtimeEnabled 
       </Dialog>
     </div>
   );
-}
+} 
 

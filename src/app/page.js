@@ -20,11 +20,14 @@ import {
   FileText, 
   ArrowRight, 
   Settings, 
-  LogOut
+  LogOut,
+  Folder
 } from 'lucide-react';
 import { supabaseClient } from '@/lib/supabaseClient';
 import { useToast } from '@/components/ui/use-toast';
 import { formatDistanceToNow } from 'date-fns';
+import { cn } from '@/lib/utils';  // For conditional class names
+import { DashboardModules } from '@/components/DashboardModules';
 
 export default function Home() {
   const router = useRouter();
@@ -36,6 +39,12 @@ export default function Home() {
     activeProjects: 0,
     upcomingEvents: 0
   });
+  const [mounted, setMounted] = useState(false);
+  
+  // Animation effect for page load
+  useEffect(() => {
+    setMounted(true);
+  }, []);
   
   useEffect(() => {
     fetchProjects();
@@ -122,247 +131,164 @@ export default function Home() {
   };
   
   return (
-    <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6">
-      <div className="flex flex-col gap-8">
-        {/* Header Section */}
-        <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
-          <PageHeader
-            heading="Dashboard"
-            description="Manage your production projects"
-          />
-          
-          <div className="flex items-center gap-3">
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={() => router.push('/settings')}
-              className="h-9"
-            >
-              <Settings className="h-4 w-4 mr-2" />
-              Settings
-            </Button>
-            <Button 
-              variant="destructive" 
-              size="sm" 
-              onClick={handleLogout}
-              className="h-9"
-            >
-              <LogOut className="h-4 w-4 mr-2" />
-              Sign Out
-            </Button>
-          </div>
-        </div>
+    <div className={cn(
+      "h-full w-full transition-opacity duration-medium",
+      mounted ? "opacity-100" : "opacity-0"
+    )}>
+      <div className="mb-8">
+        <PageHeader
+          heading="Dashboard"
+          description="Your production hub"
+        />
+      </div>
+      
+      {/* Quick Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center space-x-4">
+              <div className="rounded-md bg-primary/10 p-2">
+                <FolderPlus className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Total Projects</p>
+                {loading ? (
+                  <Skeleton className="h-7 w-16 mt-1" />
+                ) : (
+                  <p className="text-2xl font-semibold">{stats.totalProjects}</p>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
         
-        {/* Quick Stats Section */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-2">
-                <div className="rounded-md bg-primary/10 p-2">
-                  <FolderPlus className="h-5 w-5 text-primary" />
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Total Projects</p>
-                  {loading ? (
-                    <Skeleton className="h-7 w-16 mt-1" />
-                  ) : (
-                    <p className="text-2xl font-semibold">{stats.totalProjects}</p>
-                  )}
-                </div>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center space-x-4">
+              <div className="rounded-md bg-success/10 p-2">
+                <CheckSquare className="h-5 w-5 text-success" />
               </div>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-2">
-                <div className="rounded-md bg-success/10 p-2">
-                  <CheckSquare className="h-5 w-5 text-success" />
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Active Projects</p>
-                  {loading ? (
-                    <Skeleton className="h-7 w-16 mt-1" />
-                  ) : (
-                    <p className="text-2xl font-semibold">{stats.activeProjects}</p>
-                  )}
-                </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Active Projects</p>
+                {loading ? (
+                  <Skeleton className="h-7 w-16 mt-1" />
+                ) : (
+                  <p className="text-2xl font-semibold">{stats.activeProjects}</p>
+                )}
               </div>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-2">
-                <div className="rounded-md bg-secondary/10 p-2">
-                  <Calendar className="h-5 w-5 text-secondary" />
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Upcoming Events</p>
-                  {loading ? (
-                    <Skeleton className="h-7 w-16 mt-1" />
-                  ) : (
-                    <p className="text-2xl font-semibold">{stats.upcomingEvents}</p>
-                  )}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+            </div>
+          </CardContent>
+        </Card>
         
-        {/* Main Content */}
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-          {/* Projects List */}
-          <div className="lg:col-span-3">
-            <Card className="overflow-hidden border shadow-sm">
-              <CardHeader className="px-6 py-4 bg-muted/50 flex flex-row items-center justify-between">
-                <CardTitle className="text-lg">Recent Projects</CardTitle>
-                <Button 
-                  size="sm" 
-                  onClick={() => router.push('/projects/new')}
-                  className="h-9"
-                >
-                  <FolderPlus className="h-4 w-4 mr-2" />
-                  New Project
-                </Button>
-              </CardHeader>
-              
-              <div className="px-6 py-3 border-b bg-card">
-                <div className="grid grid-cols-12 text-xs font-medium text-muted-foreground">
-                  <div className="col-span-6 md:col-span-5">Project Name</div>
-                  <div className="col-span-3 md:col-span-4">Status</div>
-                  <div className="col-span-3">Last Updated</div>
-                </div>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center space-x-4">
+              <div className="rounded-md bg-secondary/10 p-2">
+                <Calendar className="h-5 w-5 text-secondary" />
               </div>
-              
-              {loading ? (
-                <CardContent className="divide-y p-0">
-                  {[1, 2, 3].map((i) => (
-                    <div key={i} className="p-6">
-                      <div className="flex flex-col gap-2">
-                        <Skeleton className="h-5 w-3/4" />
-                        <Skeleton className="h-4 w-1/2" />
-                      </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Upcoming Events</p>
+                {loading ? (
+                  <Skeleton className="h-7 w-16 mt-1" />
+                ) : (
+                  <p className="text-2xl font-semibold">{stats.upcomingEvents}</p>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+      
+      {/* Dashboard Modules */}
+      <div className="space-y-8">
+        <DashboardModules />
+      
+        {/* Projects List */}
+        <Card className="overflow-hidden border shadow-sm">
+          <CardHeader className="bg-muted/50">
+            <div className="flex justify-between items-center">
+              <CardTitle className="text-lg font-medium">Recent Projects</CardTitle>
+              <Button 
+                size="sm" 
+                onClick={() => router.push('/projects/new')}
+                aria-label="Create new project"
+              >
+                New Project
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="p-0">
+            {loading ? (
+              <div className="p-6 space-y-4">
+                {Array(3).fill(0).map((_, i) => (
+                  <div key={i} className="flex items-center gap-4">
+                    <Skeleton className="h-12 w-12 rounded-md" />
+                    <div className="space-y-2 flex-1">
+                      <Skeleton className="h-5 w-1/3" />
+                      <Skeleton className="h-4 w-1/4" />
                     </div>
-                  ))}
-                </CardContent>
-              ) : (
-                <CardContent className="divide-y p-0">
-                  {projects.length === 0 ? (
-                    <EmptyState
-                      icon={<FolderPlus />}
-                      title="No projects yet"
-                      description="Create your first project to get started."
-                      action={
-                        <Button 
-                          onClick={() => router.push('/projects/new')}
-                        >
-                          <FolderPlus className="h-4 w-4 mr-2" />
-                          Create Project
-                        </Button>
-                      }
-                    />
-                  ) : (
-                    projects.slice(0, 5).map((project) => (
+                    <Skeleton className="h-8 w-24 rounded-md" />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <>
+                {projects.length > 0 ? (
+                  <div className="divide-y" role="table">
+                    {projects.map((project) => (
                       <div 
                         key={project.id} 
-                        className="px-6 py-4 grid grid-cols-12 items-center hover:bg-muted/40 cursor-pointer transition-colors"
-                        onClick={() => router.push(`/projects/${project.id}`)}
+                        className="flex items-center justify-between p-4 hover:bg-muted/50 transition-colors"
+                        role="row"
                       >
-                        <div className="col-span-6 md:col-span-5">
-                          <p className="font-medium">{project.name}</p>
-                          {project.description && (
-                            <p className="text-xs text-muted-foreground truncate pr-4 mt-1">
-                              {project.description}
+                        <div className="flex items-center gap-4" role="cell">
+                          <div className="h-10 w-10 rounded-md bg-primary/10 flex items-center justify-center">
+                            <Folder className="h-5 w-5 text-primary" />
+                          </div>
+                          <div>
+                            <Link href={`/projects/${project.id}`} className="font-medium hover:underline">
+                              {project.name}
+                            </Link>
+                            <p className="text-sm text-muted-foreground">
+                              {project.updated_at 
+                                ? `Updated ${formatDistanceToNow(new Date(project.updated_at), { addSuffix: true })}` 
+                                : 'Recently created'}
                             </p>
-                          )}
+                          </div>
                         </div>
-                        <div className="col-span-3 md:col-span-4">
-                          <Badge variant={project.status === 'active' ? 'success' : project.status === 'completed' ? 'secondary' : 'outline'}>
-                            {project.status || 'draft'}
+                        <div className="flex items-center gap-2" role="cell">
+                          <Badge variant={
+                            project.status === 'active' ? 'success' :
+                            project.status === 'completed' ? 'secondary' :
+                            project.status === 'cancelled' ? 'destructive' : 'outline'
+                          }>
+                            {project.status?.charAt(0).toUpperCase() + project.status?.slice(1) || 'Draft'}
                           </Badge>
-                        </div>
-                        <div className="col-span-3 text-sm text-muted-foreground">
-                          {formatDistanceToNow(new Date(project.updated_at), { addSuffix: true })}
+                          <Button variant="ghost" size="icon" asChild>
+                            <Link href={`/projects/${project.id}`}>
+                              <ArrowRight className="h-4 w-4" />
+                            </Link>
+                          </Button>
                         </div>
                       </div>
-                    ))
-                  )}
-                </CardContent>
-              )}
-              
-              {projects.length > 0 && (
-                <CardFooter className="flex justify-center md:justify-end p-4 bg-muted/50 border-t">
-                  <Button 
-                    variant="outline"
-                    onClick={() => router.push('/projects')}
-                    className="h-9"
-                  >
-                    View All Projects
-                    <ArrowRight className="h-4 w-4 ml-2" />
-                  </Button>
-                </CardFooter>
-              )}
-            </Card>
-          </div>
-          
-          {/* Sidebar Cards */}
-          <div className="space-y-6">
-            {/* Upcoming Events Card */}
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-lg">Coming Up</CardTitle>
-                <CardDescription>Your next scheduled events</CardDescription>
-              </CardHeader>
-              <CardContent className="grid gap-4">
-                {loading ? (
-                  Array(2).fill(0).map((_, i) => (
-                    <div key={i} className="flex flex-col gap-2">
-                      <Skeleton className="h-5 w-2/3" />
-                      <Skeleton className="h-4 w-1/2" />
-                    </div>
-                  ))
-                ) : (
-                  <div className="text-center py-6 text-muted-foreground">
-                    <Calendar className="h-8 w-8 mx-auto opacity-50 mb-2" />
-                    <p className="text-sm">No upcoming events</p>
+                    ))}
                   </div>
+                ) : (
+                  <EmptyState 
+                    icon={<FolderPlus className="h-8 w-8 text-muted-foreground" />}
+                    title="No projects yet"
+                    description="Create your first project to get started"
+                    action={
+                      <Button onClick={() => router.push('/projects/new')}>
+                        New Project
+                      </Button>
+                    }
+                  />
                 )}
-              </CardContent>
-              <CardFooter>
-                <Button variant="ghost" size="sm" className="w-full" onClick={() => router.push('/schedule')}>
-                  <Calendar className="h-4 w-4 mr-2" />
-                  View Schedule
-                </Button>
-              </CardFooter>
-            </Card>
-            
-            {/* Quick Actions Card */}
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-lg">Quick Actions</CardTitle>
-              </CardHeader>
-              <CardContent className="grid gap-2">
-                <Button variant="outline" className="justify-start h-9" onClick={() => router.push('/projects/new')}>
-                  <FolderPlus className="h-4 w-4 mr-2" />
-                  <span>New Project</span>
-                </Button>
-                <Button variant="outline" className="justify-start h-9" onClick={() => router.push('/schedule')}>
-                  <Calendar className="h-4 w-4 mr-2" />
-                  <span>Schedule Event</span>
-                </Button>
-                <Button variant="outline" className="justify-start h-9" onClick={() => router.push('/tasks')}>
-                  <CheckSquare className="h-4 w-4 mr-2" />
-                  <span>View Tasks</span>
-                </Button>
-                <Button variant="outline" className="justify-start h-9" onClick={() => router.push('/team')}>
-                  <Users className="h-4 w-4 mr-2" />
-                  <span>Team</span>
-                </Button>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

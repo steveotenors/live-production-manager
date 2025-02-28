@@ -111,7 +111,7 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
   return (
     <>
       <PageHeader 
-        title={project.name}
+        heading={project.name}
         backHref="/projects"
         backLabel="Back to Projects"
       />

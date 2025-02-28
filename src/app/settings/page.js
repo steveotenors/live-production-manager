@@ -39,12 +39,8 @@ export default function SettingsPage() {
       darkMode: initialDark
     }));
 
-    // Apply theme class to document for initial render
-    if (initialDark) {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
+    // No need to modify the DOM here - the script in layout.js handles this
+    // This effect is only for syncing the UI toggle state
   }, []);
   
   const handleDarkModeToggle = (checked) => {

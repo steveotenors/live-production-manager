@@ -1,7 +1,18 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
- 
+
+/* Prevent theme flash during page load */
+html:not([data-theme-loaded]) {
+  visibility: hidden;
+}
+
+/* Define sidebar widths as CSS variables for consistency */
+:root {
+  --collapsed-sidebar-width: 70px;
+  --expanded-sidebar-width: 256px;
+}
+
 @layer base {
   :root {
     /* Design System Colors - Light Mode */
@@ -125,6 +136,23 @@
 
 /* Enhanced dark mode styling */
 @layer components {
+  /* Sidebar toggle button animation */
+  .sidebar-toggle-btn {
+    animation: pulse 2s infinite;
+  }
+
+  @keyframes pulse {
+    0% {
+      box-shadow: 0 0 0 0 rgba(var(--primary), 0.7);
+    }
+    70% {
+      box-shadow: 0 0 0 10px rgba(var(--primary), 0);
+    }
+    100% {
+      box-shadow: 0 0 0 0 rgba(var(--primary), 0);
+    }
+  }
+
   /* Better card contrast in dark mode */
   .dark .card,
   .dark .bg-card {
