@@ -3,32 +3,52 @@
 import * as React from "react"
 import { cn } from "@/lib/utils"
 
-// Simple progress component that doesn't depend on Radix UI
-const Progress = React.forwardRef<
-  HTMLDivElement,
-  React.HTMLAttributes<HTMLDivElement> & {
-    value?: number
-    max?: number
-  }
->(({ className, value = 0, max = 100, ...props }, ref) => {
-  const percentage = Math.min(Math.max(0, (value / max) * 100), 100)
+interface ProgressProps extends React.HTMLAttributes<HTMLDivElement> {
+  value: number
+  max?: number
+  showValue?: boolean
+  variant?: "default" | "success" | "info" | "warning" | "danger"
+}
 
-  return (
-    <div
-      ref={ref}
-      className={cn(
-        "relative h-4 w-full overflow-hidden rounded-full bg-secondary",
-        className
-      )}
-      {...props}
-    >
-      <div
-        className="h-full w-full flex-1 bg-primary transition-all"
-        style={{ transform: `translateX(-${100 - percentage}%)` }}
-      />
-    </div>
-  )
-})
+const Progress = React.forwardRef<HTMLDivElement, ProgressProps>(
+  ({ className, value, max = 100, showValue = false, variant = "default", ...props }, ref) => {
+    const percentage = Math.min(Math.max(0, (value / max) * 100), 100)
+    
+    const variantClasses = {
+      default: "bg-primary",
+      success: "bg-success",
+      info: "bg-info",
+      warning: "bg-warning",
+      danger: "bg-danger",
+    }
+
+    return (
+      <div className="relative" {...props}>
+        <div
+          ref={ref}
+          className={cn(
+            "relative h-2 w-full overflow-hidden rounded-full bg-muted",
+            className
+          )}
+        >
+          <div
+            className={cn(
+              "h-full w-full flex-1 transition-all",
+              variantClasses[variant]
+            )}
+            style={{ transform: `translateX(-${100 - percentage}%)` }}
+          />
+        </div>
+        
+        {showValue && (
+          <div className="absolute right-0 top-0 -mt-6 text-xs text-muted-foreground">
+            {Math.round(percentage)}%
+          </div>
+        )}
+      </div>
+    )
+  }
+)
 
 Progress.displayName = "Progress"
 

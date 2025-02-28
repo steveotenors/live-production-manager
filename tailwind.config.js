@@ -48,6 +48,22 @@ module.exports = {
   				DEFAULT: 'hsl(var(--card))',
   				foreground: 'hsl(var(--card-foreground))'
   			},
+  			success: {
+  				DEFAULT: 'hsl(var(--success))',
+  				foreground: 'hsl(var(--success-foreground))'
+  			},
+  			info: {
+  				DEFAULT: 'hsl(var(--info))',
+  				foreground: 'hsl(var(--info-foreground))'
+  			},
+  			warning: {
+  				DEFAULT: 'hsl(var(--warning))',
+  				foreground: 'hsl(var(--warning-foreground))'
+  			},
+  			danger: {
+  				DEFAULT: 'hsl(var(--destructive))',
+  				foreground: 'hsl(var(--destructive-foreground))'
+  			},
   			chart: {
   				'1': 'hsl(var(--chart-1))',
   				'2': 'hsl(var(--chart-2))',
@@ -60,6 +76,17 @@ module.exports = {
   			lg: 'var(--radius)',
   			md: 'calc(var(--radius) - 2px)',
   			sm: 'calc(var(--radius) - 4px)'
+  		},
+  		transitionDuration: {
+  			fast: 'var(--animation-fast)',
+  			DEFAULT: 'var(--animation-default)',
+  			medium: 'var(--animation-medium)',
+  			slow: 'var(--animation-slow)',
+  		},
+  		boxShadow: {
+  			sm: 'var(--elevation-1)',
+  			DEFAULT: 'var(--elevation-2)',
+  			lg: 'var(--elevation-3)',
   		}
   	}
   },
