@@ -258,8 +258,8 @@ export async function deleteFile(path: string, bucket: string = DEFAULT_BUCKET, 
 }
 
 /**
- * Create a new folder
- * @param folderPath Path to the new folder
+ * Create a folder
+ * @param folderPath Path to the folder
  * @param bucket Bucket name
  * @returns Success or error
  */
@@ -268,10 +268,16 @@ export async function createFolder(folderPath: string, bucket: string = DEFAULT_
     // Add delay to prevent too many requests
     await delay(API_CALL_DELAY);
     
+    // Normalize path - remove any trailing slash
+    const normalizedPath = folderPath.endsWith('/') 
+      ? folderPath.slice(0, -1) 
+      : folderPath;
+    
     // Create a .folder file as a marker for the folder
+    // This is the only marker we need - don't create any extra files
     const { error } = await supabaseClient.storage
       .from(bucket)
-      .upload(`${folderPath}/.folder`, new File([], `.folder`));
+      .upload(`${normalizedPath}/.folder`, new File([], `.folder`));
     
     if (error) {
       const errorMessage = handleStorageError(error, 'creating folder');

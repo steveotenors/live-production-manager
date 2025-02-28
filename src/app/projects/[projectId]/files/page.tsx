@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { supabaseClient } from '@/lib/supabaseClient';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
-import FileManager from '@/components/FileManager';
+import FileManager from './component';
 import { RealtimeChannel } from '@supabase/supabase-js';
 
 // Update FilesPage component to accept our props
@@ -50,9 +50,6 @@ export default function FilesPage() {
         
         setProject(projectData);
         setError(null);
-        
-        // Set up real-time updates for files
-        setupRealtimeSubscription();
       } catch (e) {
         // Detailed error logging
         console.error('Error in Files component:', e);
@@ -70,60 +67,7 @@ export default function FilesPage() {
         supabaseClient.removeChannel(channel);
       }
     };
-  }, [projectId, toast, router]);
-  
-  const setupRealtimeSubscription = async () => {
-    // Create a channel for both assets and folders
-    const newChannel = supabaseClient
-      .channel('project-files-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*', // Listen to all events
-          schema: 'public',
-          table: 'assets',
-          filter: `project_id=eq.${projectId}`
-        },
-        (payload) => {
-          console.log('Assets real-time update:', payload);
-          // We'll let the FileManager component re-fetch data
-          toast({
-            title: payload.eventType === 'INSERT' 
-              ? 'File uploaded' 
-              : payload.eventType === 'DELETE'
-              ? 'File deleted'
-              : 'File updated',
-            description: 'File list has been updated'
-          });
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'folders',
-          filter: `project_id=eq.${projectId}`
-        },
-        (payload) => {
-          console.log('Folders real-time update:', payload);
-          // We'll let the FileManager component re-fetch data
-          toast({
-            title: payload.eventType === 'INSERT' 
-              ? 'Folder created' 
-              : payload.eventType === 'DELETE'
-              ? 'Folder deleted'
-              : 'Folder updated',
-            description: 'Folder structure has been updated'
-          });
-        }
-      )
-      .subscribe((status) => {
-        console.log('Files real-time subscription status:', status);
-      });
-      
-    setChannel(newChannel);
-  };
+  }, [projectId, toast, router, isSpecialPath]);
   
   // If still loading, show a skeleton
   if (loading) {
@@ -138,18 +82,22 @@ export default function FilesPage() {
     );
   }
   
-  // Use the type-cast component with props
   return (
-    <div>
-      <div className="mb-2 text-sm text-muted-foreground">
-        Files for project: <span className="font-medium text-foreground">{project?.name}</span>
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-semibold tracking-tight">
+          Files
+          {project?.name && (
+            <span className="ml-2 text-muted-foreground text-sm font-normal">
+              for project <span className="font-medium">{project.name}</span>
+            </span>
+          )}
+        </h1>
       </div>
       
-      {/* Use our file manager component */}
       <FileManager 
         projectId={projectId} 
         basePath={`project-${projectId}`} 
-        realtimeEnabled={true} 
       />
     </div>
   );
