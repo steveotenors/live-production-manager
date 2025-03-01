@@ -1,3 +1,95 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Prevent theme flash during page load */
+html:not([data-theme-loaded]) {
+  visibility: hidden;
+}
+
+/* Define sidebar widths as CSS variables for consistency */
+:root {
+  --collapsed-sidebar-width: 70px;
+  --expanded-sidebar-width: 256px;
+}
+
+@layer base {
+  :root {
+    /* Design System Colors - Light Mode */
+    --background: 0 0% 100%; /* #ffffff */
+    --foreground: 222 47% 11%; /* #0f172a */
+
+    --card: 0 0% 100%; /* #ffffff */
+    --card-foreground: 222 47% 11%; /* #0f172a */
+ 
+    --popover: 0 0% 100%; /* #ffffff */
+    --popover-foreground: 222 47% 11%; /* #0f172a */
+ 
+    --primary: 217 91% 60%; /* #2563eb */
+    --primary-foreground: 0 0% 100%; /* #ffffff */
+ 
+    --secondary: 215 16% 47%; /* #6b7280 */
+    --secondary-foreground: 0 0% 100%; /* #ffffff */
+ 
+    --muted: 210 40% 96.1%; /* #f1f5f9 */
+    --muted-foreground: 215 16% 47%; /* #64748b */
+ 
+    --accent: 210 40% 96.1%; /* #f1f5f9 */
+    --accent-foreground: 222 47% 11%; /* #0f172a */
+ 
+    --destructive: 0 72% 51%; /* #dc2626 */
+    --destructive-foreground: 0 0% 100%; /* #ffffff */
+
+    --success: 158 64% 40%; /* #10b981 */
+    --success-foreground: 0 0% 100%; /* #ffffff */
+
+    --info: 217 91% 60%; /* #2563eb */
+    --info-foreground: 0 0% 100%; /* #ffffff */
+
+    --warning: 35 92% 52%; /* #f59e0b */
+    --warning-foreground: 0 0% 100%; /* #ffffff */
+
+    --border: 214 32% 91%; /* #e2e8f0 */
+    --input: 214 32% 91%; /* #e2e8f0 */
+    --ring: 217 91% 60%; /* #2563eb */
+ 
+    --radius: 0.5rem;
+ 
+    --chart-1: 12 76% 61%;
+    --chart-2: 173 58% 39%;
+    --chart-3: 197 37% 24%;
+    --chart-4: 43 74% 66%;
+    --chart-5: 27 87% 67%;
+
+    /* Animation tokens */
+    --animation-fast: 100ms;
+    --animation-default: 150ms;
+    --animation-medium: 200ms;
+    --animation-slow: 300ms;
+
+    /* Elevation tokens */
+    --elevation-1: 0 1px 3px rgba(0,0,0,0.1), 0 1px 2px rgba(0,0,0,0.06);
+    --elevation-2: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06);
+    --elevation-3: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05);
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground transition-colors duration-medium;
+  }
+}
+
+@layer components {
+  /* Section container for consistent styling across dashboard sections */
+  .section-container {
+    @apply p-5 bg-card border border-border rounded-lg shadow-sm;
+  }
+}
+
 /* Add this to the end of your globals.css file */
 
 /* Sidebar background container that adapts to content */
@@ -34,12 +126,4 @@
 
 .sidebar-item:hover {
   background-color: rgba(31, 41, 55, 0.8);
-}
-
-/* Clean content container styles */
-.section-container {
-  background-color: #111827;
-  border: 1px solid rgba(55, 65, 81, 0.3);
-  border-radius: 8px;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
 } 

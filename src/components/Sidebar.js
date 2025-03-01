@@ -1,203 +1,227 @@
+'use client';
+
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { 
-  Home, 
+  ChevronLeft, 
+  LayoutDashboard, 
+  FolderKanban, 
+  FileText, 
   Calendar, 
   Settings, 
-  FileText,
-  ClipboardList,
-  Users,
-  Folder,
-  UserCircle
+  LogOut, 
+  HelpCircle, 
+  User, 
+  Crown,
+  Bell
 } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
-/**
- * Sidebar Component
- * 
- * A standalone navigation sidebar that can be used in any layout
- * Designed to be responsive, collapsible, and interactive
- */
-const Sidebar = ({ 
-  projects = [],
-  user = null,
-  projectId = null,
-  isProjectPage = false,
-  onExpandChange = () => {}
-}) => {
-  const [isExpanded, setIsExpanded] = useState(false);
+// Main navigation links
+const navItems = [
+  { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+  { name: 'Projects', href: '/projects', icon: FolderKanban },
+  { name: 'Documents', href: '/documents', icon: FileText },
+  { name: 'Schedule', href: '/schedule', icon: Calendar },
+];
+
+// Settings and support links
+const bottomNavItems = [
+  { name: 'Settings', href: '/settings', icon: Settings },
+  { name: 'Support', href: '/support', icon: HelpCircle },
+];
+
+const Sidebar = ({ isOpen, onToggle }) => {
   const pathname = usePathname();
-  
-  // When expanded state changes, notify parent component
+  const [mounted, setMounted] = useState(false);
+
+  // Apply premium-obsidian-theme to document
   useEffect(() => {
-    onExpandChange(isExpanded);
-  }, [isExpanded, onExpandChange]);
-  
-  const handleMouseEnter = () => {
-    setIsExpanded(true);
-  };
+    setMounted(true);
+    document.documentElement.classList.add('premium-obsidian-theme');
+  }, []);
 
-  const handleMouseLeave = () => {
-    setIsExpanded(false);
-  };
-
-  // Determine active state for nav items
-  const isActive = (path) => pathname === path;
+  if (!mounted) return null;
 
   return (
-    <aside 
-      className="fixed top-0 left-0 h-screen w-auto transition-all duration-300 ease-in-out bg-gray-900 border-r border-gray-800 shadow-md"
-      style={{ width: isExpanded ? '220px' : '64px' }}
-      onMouseEnter={handleMouseEnter}
-      onMouseLeave={handleMouseLeave}
+    <aside
+      className={cn(
+        "fixed inset-y-0 left-0 z-50 transition-all duration-300 ease-in-out border-r border-primary/10",
+        "glass shadow-lg backdrop-blur-premium",
+        isOpen ? "w-64" : "w-20"
+      )}
     >
-      <div className="flex flex-col h-full">
-        {/* Logo and Branding */}
-        <div className="flex items-center justify-center py-5">
-          <Link href="/">
-            <div className="flex items-center">
-              <div className="h-10 w-10 rounded-md bg-blue-600 flex items-center justify-center text-white font-bold text-lg">
-                P
+      {/* Sidebar backdrop glow effect */}
+      <div className="absolute inset-0 pointer-events-none shadow-gold-glow opacity-20 rounded-r-lg" />
+      
+      {/* Sidebar header */}
+      <div className="h-16 flex items-center justify-between px-4 border-b border-primary/10">
+        <div className={cn("flex items-center", isOpen ? "justify-between w-full" : "justify-center")}>
+          {isOpen && (
+            <Link href="/dashboard">
+              <div className="flex items-center">
+                <span className="text-xl font-semibold gradient-text">Production</span>
               </div>
-              {isExpanded && (
-                <span className="ml-3 font-semibold text-lg text-white">
-                  PM
-                </span>
+            </Link>
+          )}
+          
+          <button
+            onClick={onToggle}
+            className="p-2 rounded-full bg-primary/10 hover:bg-primary/20 transition-all duration-300 sidebar-toggle-btn"
+            aria-label={isOpen ? "Collapse sidebar" : "Expand sidebar"}
+          >
+            <ChevronLeft
+              className={cn(
+                "h-5 w-5 text-primary transition-transform duration-300",
+                !isOpen && "rotate-180"
               )}
-            </div>
-          </Link>
+            />
+          </button>
         </div>
-
-        {/* Main Navigation */}
-        <nav className="flex-1 space-y-1 px-2 py-4">
-          <NavItem 
-            href="/" 
-            icon={<Home className="h-5 w-5" />}
-            label="Dashboard" 
-            expanded={isExpanded}
-            active={isActive('/')} 
-          />
-          
-          {/* Conditionally render project-specific nav items when in a project */}
-          {isProjectPage && projectId && (
-            <>
-              <NavItem 
-                href={`/projects/${projectId}/files`} 
-                icon={<FileText className="h-5 w-5" />}
-                label="Files" 
-                expanded={isExpanded}
-                active={isActive(`/projects/${projectId}/files`)} 
-              />
-              <NavItem 
-                href={`/projects/${projectId}/tasks`} 
-                icon={<ClipboardList className="h-5 w-5" />}
-                label="Tasks" 
-                expanded={isExpanded}
-                active={isActive(`/projects/${projectId}/tasks`)} 
-              />
-              <NavItem 
-                href={`/projects/${projectId}/team`} 
-                icon={<Users className="h-5 w-5" />}
-                label="Team" 
-                expanded={isExpanded}
-                active={isActive(`/projects/${projectId}/team`)} 
-              />
-              <NavItem 
-                href={`/projects/${projectId}/schedule`} 
-                icon={<Calendar className="h-5 w-5" />}
-                label="Schedule" 
-                expanded={isExpanded}
-                active={isActive(`/projects/${projectId}/schedule`)} 
-              />
-            </>
-          )}
-          
-          {/* Projects section */}
-          {projects.length > 0 && (
-            <div className="pt-4">
-              <div className={`px-3 text-xs font-medium text-gray-400 uppercase ${!isExpanded && 'sr-only'}`}>
-                Projects
+      </div>
+      
+      {/* User profile section */}
+      <div className={cn(
+        "border-b border-primary/10 py-4 px-3 obsidian-reflection relative",
+        isOpen ? "mx-3 my-4 rounded-xl bg-primary/5" : "mx-2 my-3"
+      )}>
+        <div className={cn("flex", isOpen ? "items-start space-x-3" : "flex-col items-center")}>
+          <div className="relative">
+            <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center border border-primary/20 shadow-gold-glow">
+              <User className="h-5 w-5 text-primary" />
+            </div>
+            {/* Premium badge */}
+            <div className="absolute -top-1 -right-1">
+              <div className="h-5 w-5 rounded-full bg-primary flex items-center justify-center shadow-gold-glow">
+                <Crown className="h-3 w-3 text-black" />
               </div>
-              <div className="mt-2 space-y-1">
-                {projects.map(project => (
-                  <NavItem 
-                    key={project.id}
-                    href={`/projects/${project.id}`} 
-                    icon={<Folder className="h-5 w-5" />}
-                    label={project.name} 
-                    expanded={isExpanded}
-                    active={projectId === project.id} 
-                  />
-                ))}
+            </div>
+          </div>
+          
+          {isOpen && (
+            <div className="flex-1 min-w-0">
+              <h3 className="text-sm font-medium truncate">Premium User</h3>
+              <p className="text-xs text-muted-foreground truncate">premium@example.com</p>
+              <div className="mt-2">
+                <span className="premium-badge text-[10px] py-0.5">Premium Obsidian</span>
               </div>
             </div>
           )}
-        </nav>
-
-        {/* Settings and User Section */}
-        <div className="mt-auto">
-          <div className={`px-3 text-xs font-medium text-gray-400 uppercase ${!isExpanded && 'sr-only'}`}>
-            Settings
-          </div>
-          <div className="mt-2 mb-2 space-y-1 px-2">
-            <NavItem 
-              href="/preferences" 
-              icon={<Settings className="h-5 w-5" />}
-              label="Preferences" 
-              expanded={isExpanded}
-              active={isActive('/preferences')} 
-            />
-            <NavItem 
-              href="/account" 
-              icon={<UserCircle className="h-5 w-5" />}
-              label="Account" 
-              expanded={isExpanded}
-              active={isActive('/account')} 
-            />
-          </div>
-
-          {/* User Profile */}
-          {user && (
-            <div className="border-t border-gray-800 mt-4 pt-4 px-2">
-              <Link href="/account">
-                <div className="flex items-center px-2 py-2">
-                  <div className="h-8 w-8 rounded-full bg-blue-600/20 flex items-center justify-center text-blue-400">
-                    {user.email?.charAt(0).toUpperCase() || 'U'}
-                  </div>
-                  {isExpanded && (
-                    <div className="ml-2">
-                      <div className="text-sm font-medium text-gray-200">{user.user_metadata?.full_name || 'User'}</div>
-                      <div className="text-xs text-gray-400">{user.email}</div>
-                    </div>
+        </div>
+      </div>
+      
+      {/* Main navigation */}
+      <div className="px-3 py-4 flex-1 overflow-y-auto">
+        <nav className="space-y-1">
+          {navItems.map((item) => {
+            const isActive = pathname?.startsWith(item.href);
+            
+            return (
+              <Link
+                key={item.name}
+                href={item.href}
+                className={cn(
+                  "group flex items-center px-3 py-2.5 text-sm font-medium rounded-lg transition-all duration-300",
+                  isOpen ? "justify-start" : "justify-center",
+                  isActive
+                    ? "bg-primary/15 text-primary shadow-gold-glow gold-border-glow"
+                    : "text-foreground hover:bg-primary/10 hover:text-primary"
+                )}
+              >
+                <div className={cn(
+                  "relative flex items-center justify-center",
+                  isActive ? "text-primary" : "text-muted-foreground group-hover:text-primary",
+                  "transition-colors duration-300",
+                  isOpen ? "mr-3" : ""
+                )}>
+                  <item.icon className={cn("h-5 w-5", isActive && "metallic-icon")} />
+                  
+                  {isActive && (
+                    <span className="absolute inset-0 rounded-full animate-pulse bg-primary/10 -z-10"></span>
                   )}
                 </div>
+                
+                {isOpen && (
+                  <span className={cn(
+                    "truncate", 
+                    isActive && "gradient-text font-medium"
+                  )}>
+                    {item.name}
+                  </span>
+                )}
               </Link>
+            );
+          })}
+        </nav>
+      </div>
+      
+      {/* Notifications */}
+      {isOpen && (
+        <div className="px-6 py-4">
+          <div className="glass p-3 rounded-lg obsidian-reflection flex items-center space-x-3">
+            <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
+              <Bell className="h-4 w-4 text-primary" />
             </div>
-          )}
+            <div className="flex-1 min-w-0">
+              <p className="text-xs">You have 3 unread notifications</p>
+            </div>
+          </div>
         </div>
+      )}
+      
+      {/* Bottom navigation */}
+      <div className="px-3 pb-4 border-t border-primary/10 pt-4">
+        <nav className="space-y-1">
+          {bottomNavItems.map((item) => {
+            const isActive = pathname?.startsWith(item.href);
+            
+            return (
+              <Link
+                key={item.name}
+                href={item.href}
+                className={cn(
+                  "group flex items-center px-3 py-2.5 text-sm font-medium rounded-lg transition-all duration-300",
+                  isOpen ? "justify-start" : "justify-center",
+                  isActive
+                    ? "bg-primary/15 text-primary shadow-gold-glow"
+                    : "text-foreground hover:bg-primary/10 hover:text-primary"
+                )}
+              >
+                <div className={cn(
+                  "relative flex items-center justify-center",
+                  isActive ? "text-primary" : "text-muted-foreground group-hover:text-primary",
+                  "transition-colors duration-300",
+                  isOpen ? "mr-3" : ""
+                )}>
+                  <item.icon className="h-5 w-5" />
+                </div>
+                
+                {isOpen && <span className="truncate">{item.name}</span>}
+              </Link>
+            );
+          })}
+          
+          {/* Logout button */}
+          <button
+            className={cn(
+              "w-full mt-4 group flex items-center px-3 py-2.5 text-sm font-medium rounded-lg",
+              "hover:bg-red-500/10 hover:text-red-500 transition-all duration-300",
+              isOpen ? "justify-start" : "justify-center",
+              "text-foreground"
+            )}
+          >
+            <LogOut className={cn(
+              "h-5 w-5 transition-colors duration-300",
+              isOpen ? "mr-3" : "",
+              "text-muted-foreground group-hover:text-red-500"
+            )} />
+            
+            {isOpen && <span className="truncate">Log Out</span>}
+          </button>
+        </nav>
       </div>
     </aside>
-  );
-};
-
-// Helper component for nav items
-const NavItem = ({ href, icon, label, expanded, active }) => {
-  return (
-    <Link href={href}>
-      <div className={`flex items-center py-2 px-3 rounded-md transition-all duration-200
-        ${active 
-          ? 'bg-blue-600 text-white' 
-          : 'text-gray-300 hover:bg-gray-800 hover:text-white'}`}>
-        <div className={`flex items-center justify-center ${!expanded && 'mx-auto'}`}>
-          {icon}
-        </div>
-        {expanded && (
-          <span className="ml-3 text-sm whitespace-nowrap">
-            {label}
-          </span>
-        )}
-      </div>
-    </Link>
   );
 };
 

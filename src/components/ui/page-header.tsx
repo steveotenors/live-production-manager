@@ -11,6 +11,8 @@ interface PageHeaderProps {
   backLabel?: string;
   children?: ReactNode;
   className?: string;
+  premium?: boolean;
+  glassBorder?: boolean;
 }
 
 export function PageHeader({ 
@@ -20,12 +22,16 @@ export function PageHeader({
   backLabel = 'Back', 
   children,
   className,
+  premium = true,
+  glassBorder = false,
   ...props
 }: PageHeaderProps) {
   return (
     <div 
       className={cn(
-        "space-y-1",
+        "space-y-2 pb-4",
+        glassBorder && "border-b border-primary/10",
+        premium && "mb-6",
         className
       )}
       {...props}
@@ -35,7 +41,7 @@ export function PageHeader({
           asChild 
           variant="ghost" 
           size="sm" 
-          className="h-8 pl-0 mb-2 hover:bg-transparent text-muted-foreground hover:text-foreground"
+          className="h-8 pl-0 mb-2 hover:bg-transparent text-primary/80 hover:text-primary transition-colors"
         >
           <Link href={backHref}>
             <ArrowLeft className="mr-1 h-4 w-4" /> {backLabel}
@@ -43,14 +49,21 @@ export function PageHeader({
         </Button>
       )}
       
-      <h1 className="text-2xl font-semibold tracking-tight">{heading}</h1>
+      <h1 className={cn(
+        "text-3xl font-bold tracking-tight slide-in-bottom",
+        premium && "gradient-text text-4xl"
+      )}>
+        {heading}
+      </h1>
       
       {description && (
-        <p className="text-sm text-muted-foreground">{description}</p>
+        <p className="text-sm text-muted-foreground slide-in-bottom opacity-80" style={{animationDelay: '50ms'}}>
+          {description}
+        </p>
       )}
       
       {children && (
-        <div className="flex items-center gap-2 pt-2">
+        <div className="flex items-center gap-3 pt-3 slide-in-bottom" style={{animationDelay: '100ms'}}>
           {children}
         </div>
       )}
